@@ -36,6 +36,9 @@ interface DashboardContextValue {
   comparisonError: Error | null;
   treemapView: TreemapViewId;
   setTreemapView: (view: TreemapViewId) => void;
+  /** Flow ego mode from `?view=flow` (issue #311). Treemap state is untouched. */
+  flowView: boolean;
+  setFlowView: (flow: boolean) => void;
   metric: DashboardMetricId;
   setMetric: (metric: DashboardMetricId) => void;
   network: import("@/lib/network").DashboardNetworkId;
@@ -140,6 +143,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [period, setPeriodState] = useState<Period>("1d");
   const [comparePeriod, setComparePeriod] = useState<Period | null>(null);
   const [treemapView, setTreemapViewState] = useState<TreemapViewId>("events");
+  const [flowView, setFlowViewState] = useState(false);
   const [metric, setMetricState] = useState<DashboardMetricId>("ops");
   const [network, setNetworkState] =
     useState<import("@/lib/network").DashboardNetworkId>("mainnet");
@@ -161,6 +165,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       if (parsed.comparePeriod) setComparePeriod(parsed.comparePeriod);
       if (parsed.metric) setMetricState(parsed.metric);
       if (parsed.view) setTreemapViewState(parsed.view);
+      if (parsed.flow === true) setFlowViewState(true);
       if (parsed.network) setNetworkState(parsed.network);
       setUrlReady(true);
     });
@@ -180,6 +185,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setFocusRequest(null);
     pendingPathSegments.current = null;
     setTreemapViewState(newView);
+  }, []);
+
+  const setFlowView = useCallback((flow: boolean) => {
+    setFlowViewState(flow);
   }, []);
 
   const handleSetMetric = useCallback((newMetric: DashboardMetricId) => {
@@ -230,6 +239,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       period,
       metric,
       view: treemapView,
+      flow: flowView,
       path: activeLevelPath,
       currentSearch: window.location.search,
       comparePeriod,
@@ -242,7 +252,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         `${window.location.pathname}${next}`,
       );
     }
-  }, [urlReady, period, metric, treemapView, activeLevelPath, comparePeriod, network]);
+  }, [urlReady, period, metric, treemapView, flowView, activeLevelPath, comparePeriod, network]);
 
   const selectSearchResult = useCallback(
     (result: SearchResult) => {
@@ -265,6 +275,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       comparisonError: comparisonQuery.error,
       treemapView,
       setTreemapView: handleSetTreemapView,
+      flowView,
+      setFlowView,
       metric,
       setMetric: handleSetMetric,
       network,
@@ -292,6 +304,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       handleSetPeriod,
       treemapView,
       handleSetTreemapView,
+      flowView,
+      setFlowView,
       metric,
       handleSetMetric,
       network,

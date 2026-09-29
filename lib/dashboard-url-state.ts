@@ -23,6 +23,22 @@ export function isValidTreemapView(
   return TREEMAP_VIEWS.some((view) => view.id === value);
 }
 
+/**
+ * Flow view URL value (issue #311).
+ *
+ * `?view=flow` opens the Flow ego view instead of a treemap. It is
+ * deliberately NOT a TreemapViewId: treemap lookups, selectors, and share
+ * links keep working exactly as before, and flow mode is carried by a
+ * separate flag below.
+ */
+export const FLOW_VIEW_PARAM = "flow";
+
+export function isFlowViewParam(
+  value: string | null | undefined,
+): boolean {
+  return value === FLOW_VIEW_PARAM;
+}
+
 /** Stable path segment for a treemap node (prefer id, fall back to name). */
 export function treemapPathSegment(node: TreemapNode): string {
   return String(node.id ?? node.name);
@@ -76,6 +92,8 @@ export type DashboardUrlState = {
   period: Period;
   metric: DashboardMetricId;
   view?: TreemapViewId;
+  /** True when `?view=flow` requests the Flow ego view (issue #311). */
+  flow?: boolean;
   pathSegments: string[];
   comparePeriod?: Period;
   network?: "mainnet" | "testnet";
@@ -101,7 +119,11 @@ export function parseDashboardUrlSearch(
   if (isValidMetric(metric)) next.metric = metric;
 
   const view = params.get("view");
-  if (isValidTreemapView(view)) next.view = view;
+  if (isFlowViewParam(view)) {
+    next.flow = true;
+  } else if (isValidTreemapView(view)) {
+    next.view = view;
+  }
 
   const network = params.get("network");
   if (network === "mainnet" || network === "testnet") next.network = network;
@@ -117,13 +139,14 @@ export function writeDashboardUrlSearch(input: {
   currentSearch?: string;
   comparePeriod?: Period | null;
   network?: "mainnet" | "testnet";
+  flow?: boolean;
 }): string {
   const params = new URLSearchParams(
     (input.currentSearch ?? "").replace(/^\?/, ""),
   );
   params.set("period", input.period);
   params.set("metric", input.metric);
-  params.set("view", input.view);
+  params.set("view", input.flow === true ? FLOW_VIEW_PARAM : input.view);
   if (input.network && input.network !== "mainnet") {
     params.set("network", input.network);
   } else {
