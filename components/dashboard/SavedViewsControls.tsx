@@ -34,6 +34,7 @@ export function SavedViewsControls() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setViews(readSavedViewsFromStorage());
     setReady(true);
   }, []);

@@ -78,7 +78,7 @@ Operation count is available today. Transaction count, active-account count, pay
 
 - Pages: Overview, Activity, Charts
 - Headline summary: today’s tx count, active wallets, top dApp
-- Public `/api/v1/activity` and `/api/v1/timeseries` with documentation
+- Public `/api/v1/activity`, `/api/v1/timeseries`, and `/api/v1/dapps` with documentation
 
 ### Phase 5: Production
 
@@ -466,11 +466,48 @@ curl "http://localhost:3000/api/v1/timeseries?period=7d"
 
 ---
 
-### Planned endpoints
+### `GET /api/v1/dapps`
 
-| Endpoint | Description |
-| --- | --- |
-| `GET /api/v1/dapps` | Top contracts by protocol |
+| Param | Values | Default |
+| --- | --- | --- |
+| `period` | `1d`, `7d`, `30d`, `month` | `1d` |
+
+Returns ranked protocols for a period with operation count and network share.
+Without GCP credentials the endpoint serves deterministic fixture data marked
+`source: "fixture"`.
+
+#### Sort order
+
+Rankings follow a stable sort order: descending by operation count (`op_count`),
+with protocol name in ascending alphabetical order (`protocol`) as a deterministic tie-breaker.
+
+#### Success response (`200`)
+
+```json
+{
+  "period": "1d",
+  "start": "2026-07-29T00:00:00.000Z",
+  "end": "2026-07-29T23:59:59.999Z",
+  "source": "hubble",
+  "sourceTimestamp": "2026-07-29T22:45:00.000Z",
+  "isPeriodComplete": false,
+  "total_ops": 300000,
+  "rankings": [
+    {
+      "rank": 1,
+      "protocol": "Soroswap",
+      "op_count": 300000,
+      "share": 87.72
+    }
+  ]
+}
+```
+
+Example:
+
+```bash
+curl "http://localhost:3000/api/v1/dapps?period=7d"
+```
 
 ---
 
