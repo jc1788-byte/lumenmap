@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { TreemapViewId } from "@/lib/constants";
+import type { ChartViewId, TreemapViewId } from "@/lib/constants";
 import {
   parseDashboardUrlSearch,
   resolveDrillPath,
@@ -36,6 +36,11 @@ interface DashboardContextValue {
   comparisonError: Error | null;
   treemapView: TreemapViewId;
   setTreemapView: (view: TreemapViewId) => void;
+  /** Top-level chart view: hierarchical treemap or experimental flow. */
+  chartView: ChartViewId;
+  setChartView: (view: ChartViewId) => void;
+  /** Whether the experimental Flow view is available; hides the switcher when false. */
+  flowViewEnabled: boolean;
   metric: DashboardMetricId;
   setMetric: (metric: DashboardMetricId) => void;
   network: import("@/lib/network").DashboardNetworkId;
@@ -136,10 +141,18 @@ function activeTreemapRoot(
   return (payload as TreemapNode | undefined) ?? null;
 }
 
-export function DashboardProvider({ children }: { children: React.ReactNode }) {
+export function DashboardProvider({
+  children,
+  flowViewEnabled = false,
+}: {
+  children: React.ReactNode;
+  /** Resolved server-side; defaults to off so the treemap stays the default. */
+  flowViewEnabled?: boolean;
+}) {
   const [period, setPeriodState] = useState<Period>("1d");
   const [comparePeriod, setComparePeriod] = useState<Period | null>(null);
   const [treemapView, setTreemapViewState] = useState<TreemapViewId>("events");
+  const [chartView, setChartViewState] = useState<ChartViewId>("treemap");
   const [metric, setMetricState] = useState<DashboardMetricId>("ops");
   const [network, setNetworkState] =
     useState<import("@/lib/network").DashboardNetworkId>("mainnet");
@@ -161,10 +174,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       if (parsed.comparePeriod) setComparePeriod(parsed.comparePeriod);
       if (parsed.metric) setMetricState(parsed.metric);
       if (parsed.view) setTreemapViewState(parsed.view);
+      if (parsed.chartView === "flow" && flowViewEnabled) {
+        setChartViewState("flow");
+      }
       if (parsed.network) setNetworkState(parsed.network);
       setUrlReady(true);
     });
-  }, []);
+  }, [flowViewEnabled]);
 
   const handleSetPeriod = useCallback((newPeriod: Period) => {
     setSelectedNode(null);
@@ -179,7 +195,17 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setActiveLevelPath([]);
     setFocusRequest(null);
     pendingPathSegments.current = null;
+    // Picking a treemap sub-view always returns to the treemap chart view.
+    setChartViewState("treemap");
     setTreemapViewState(newView);
+  }, []);
+
+  const handleSetChartView = useCallback((newView: ChartViewId) => {
+    setSelectedNode(null);
+    setActiveLevelPath([]);
+    setFocusRequest(null);
+    pendingPathSegments.current = null;
+    setChartViewState(newView);
   }, []);
 
   const handleSetMetric = useCallback((newMetric: DashboardMetricId) => {
@@ -230,6 +256,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       period,
       metric,
       view: treemapView,
+      chartView,
       path: activeLevelPath,
       currentSearch: window.location.search,
       comparePeriod,
@@ -242,10 +269,21 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         `${window.location.pathname}${next}`,
       );
     }
-  }, [urlReady, period, metric, treemapView, activeLevelPath, comparePeriod, network]);
+  }, [
+    urlReady,
+    period,
+    metric,
+    treemapView,
+    chartView,
+    activeLevelPath,
+    comparePeriod,
+    network,
+  ]);
 
   const selectSearchResult = useCallback(
     (result: SearchResult) => {
+      // Search results always point at treemap nodes, so return to Treemap.
+      setChartViewState("treemap");
       setTreemapViewState(result.treemapView);
       setFocusRequest(result);
       setSelectedNode(selectedNodeFromSearch(query.data, result));
@@ -265,6 +303,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       comparisonError: comparisonQuery.error,
       treemapView,
       setTreemapView: handleSetTreemapView,
+      chartView,
+      setChartView: handleSetChartView,
+      flowViewEnabled,
       metric,
       setMetric: handleSetMetric,
       network,
@@ -292,6 +333,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       handleSetPeriod,
       treemapView,
       handleSetTreemapView,
+      chartView,
+      handleSetChartView,
+      flowViewEnabled,
       metric,
       handleSetMetric,
       network,

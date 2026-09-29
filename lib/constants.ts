@@ -86,4 +86,15 @@ export const TREEMAP_VIEWS = [
 
 export type TreemapViewId = (typeof TREEMAP_VIEWS)[number]["id"];
 
+/**
+ * Top-level chart views rendered inside the Network chart card. The Flow view
+ * is experimental and only offered when the Flow feature flag is enabled.
+ */
+export const CHART_VIEWS = [
+  { id: "treemap", label: "Treemap" },
+  { id: "flow", label: "Flow" },
+] as const;
+
+export type ChartViewId = (typeof CHART_VIEWS)[number]["id"];
+
 export const TOP_PROTOCOLS = 15;

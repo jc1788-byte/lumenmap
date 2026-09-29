@@ -4,6 +4,7 @@ import type { TreemapNode } from "@/lib/types";
 import {
   decodeDrillPathParam,
   encodeDrillPath,
+  isValidChartView,
   isValidMetric,
   parseDashboardUrlSearch,
   resolveDrillPath,
@@ -103,5 +104,51 @@ describe("dashboard URL state", () => {
       path: [],
     });
     assert.equal(parseDashboardUrlSearch(search).comparePeriod, "7d");
+  });
+
+  it("validates known chart views only", () => {
+    assert.equal(isValidChartView("treemap"), true);
+    assert.equal(isValidChartView("flow"), true);
+    assert.equal(isValidChartView("events"), false);
+    assert.equal(isValidChartView(null), false);
+  });
+
+  it("parses `view=flow` as the Flow chart view", () => {
+    const parsed = parseDashboardUrlSearch("?view=flow&flow=1");
+    assert.equal(parsed.chartView, "flow");
+    assert.equal(parsed.view, undefined);
+  });
+
+  it("keeps parsing treemap sub-views when view is not flow", () => {
+    const parsed = parseDashboardUrlSearch("?view=actors");
+    assert.equal(parsed.view, "actors");
+    assert.equal(parsed.chartView, undefined);
+  });
+
+  it("writes `view=flow` for the Flow chart view and preserves the opt-in", () => {
+    const search = writeDashboardUrlSearch({
+      period: "1d",
+      metric: "ops",
+      view: "events",
+      chartView: "flow",
+      path: [],
+      currentSearch: "?flow=1",
+    });
+
+    assert.equal(parseDashboardUrlSearch(search).chartView, "flow");
+    assert.match(search, /flow=1/);
+  });
+
+  it("writes the treemap sub-view when the chart view is the default", () => {
+    const search = writeDashboardUrlSearch({
+      period: "1d",
+      metric: "ops",
+      view: "actors",
+      chartView: "treemap",
+      path: [],
+    });
+
+    assert.match(search, /view=actors/);
+    assert.equal(parseDashboardUrlSearch(search).chartView, undefined);
   });
 });

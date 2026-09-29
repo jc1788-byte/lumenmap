@@ -125,9 +125,14 @@ function DashboardContent() {
   );
 }
 
-export function DashboardPage() {
+export function DashboardPage({
+  flowViewEnabled = false,
+}: {
+  /** Flow feature flag resolved in the server component. */
+  flowViewEnabled?: boolean;
+} = {}) {
   return (
-    <DashboardProvider>
+    <DashboardProvider flowViewEnabled={flowViewEnabled}>
       <DashboardContent />
     </DashboardProvider>
   );

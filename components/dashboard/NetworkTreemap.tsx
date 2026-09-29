@@ -12,6 +12,8 @@ import { resolveActiveLevel } from "@/lib/entities/treemap-level";
 import { ExportControls } from "@/components/dashboard/ExportControls";
 import { TreemapViewSelector } from "@/components/dashboard/TreemapViewSelector";
 import { TreemapMetricSelector } from "@/components/dashboard/TreemapMetricSelector";
+import { ViewSwitcher } from "@/components/dashboard/ViewSwitcher";
+import { FlowViewSection } from "@/components/dashboard/FlowViewSection";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -90,6 +92,9 @@ export function NetworkTreemap() {
     refetch,
     period,
     treemapView,
+    chartView,
+    setChartView,
+    flowViewEnabled,
     metric,
     setSelectedNode,
     selectedNode,
@@ -101,6 +106,9 @@ export function NetworkTreemap() {
     new Set(),
   );
   const retryPending = isRetrying || isFetching;
+  const isFlowView = chartView === "flow";
+  // Only link the tab panel when the switcher (and its tabs) are rendered.
+  const chartPanelId = flowViewEnabled ? "chart-view-panel" : undefined;
 
   const toggleCategory = (key: string) => {
     setExcludedCategories((prev) => {
@@ -183,9 +191,17 @@ export function NetworkTreemap() {
             <ExportControls />
           </div>
         </div>
-        <TreemapViewSelector />
-        <TreemapMetricSelector />
-        {metric !== "protocol_tvl" ? (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          {!isFlowView ? <TreemapViewSelector /> : null}
+          <ViewSwitcher
+            value={chartView}
+            onChange={setChartView}
+            flowEnabled={flowViewEnabled}
+            panelId={chartPanelId}
+          />
+        </div>
+        {!isFlowView ? <TreemapMetricSelector /> : null}
+        {!isFlowView && metric !== "protocol_tvl" ? (
         <div className="flex flex-wrap gap-2">
           {/* Inject pattern defs so legend swatches can reference them */}
           <svg width="0" height="0" aria-hidden="true" style={{ position: "absolute" }}>
@@ -266,17 +282,26 @@ export function NetworkTreemap() {
             </Button>
           ) : null}
         </div>
-        ) : (
+        ) : !isFlowView ? (
           <p className="text-xs text-zinc-500">
             Tile colors encode adapter status: complete, partial, or stale.
           </p>
-        )}
+        ) : null}
         <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
           {filterAnnouncement}
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {isLoading ? (
+      <CardContent
+        className="space-y-6"
+        id={chartPanelId}
+        role={chartPanelId ? "tabpanel" : undefined}
+        aria-labelledby={
+          chartPanelId ? `${chartPanelId}-tab-${chartView}` : undefined
+        }
+      >
+        {isFlowView ? (
+          <FlowViewSection />
+        ) : isLoading ? (
           <div data-treemap-container="true"
             className={CHART_FRAME_CLASS}>
             <Skeleton className="h-full w-full rounded-lg" />
@@ -344,7 +369,7 @@ export function NetworkTreemap() {
             )}
           </div>
         )}
-        {!isLoading && !isError && filteredTreemap
+        {!isFlowView && !isLoading && !isError && filteredTreemap
           ? (() => {
               const level = resolveActiveLevel(filteredTreemap, activeLevelPath);
               return (
