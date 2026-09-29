@@ -309,3 +309,96 @@ export function prefersReducedMotion(): boolean {
   }
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
+
+export interface FlowExportEdge {
+  from?: string;
+  source?: string;
+  to?: string;
+  destination?: string;
+  assetKey?: string;
+  asset?: { code: string } | string;
+  amount: string | number;
+  op_count?: number;
+  operationCount?: number;
+}
+
+function resolveFlowEdgeAsset(edge: FlowExportEdge): string {
+  if (typeof edge.asset === "string") {
+    return edge.asset;
+  }
+  if (edge.asset && typeof edge.asset === "object" && "code" in edge.asset && edge.asset.code) {
+    return edge.asset.code;
+  }
+  if (edge.assetKey) {
+    if (edge.assetKey === "native:XLM" || edge.assetKey === "native") {
+      return "XLM";
+    }
+    if (edge.assetKey.includes(":")) {
+      const [code, issuer] = edge.assetKey.split(":");
+      return code === "native" ? (issuer || "XLM") : code;
+    }
+    return edge.assetKey;
+  }
+  return "";
+}
+
+function escapeCsvField(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  const str = String(val);
+  if (/[",\r\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+export function serializeFlowEdgesToCsv(
+  edges: readonly FlowExportEdge[]
+): string {
+  const header = "from,to,asset,amount,op_count";
+  if (!edges || edges.length === 0) {
+    return `${header}\n`;
+  }
+
+  const rows = edges.map((edge) => {
+    const from = edge.from ?? edge.source ?? "";
+    const to = edge.to ?? edge.destination ?? "";
+    const asset = resolveFlowEdgeAsset(edge);
+    const amount =
+      edge.amount !== undefined && edge.amount !== null ? String(edge.amount) : "0";
+    const opCount = edge.op_count ?? edge.operationCount ?? 0;
+
+    return [
+      escapeCsvField(from),
+      escapeCsvField(to),
+      escapeCsvField(asset),
+      escapeCsvField(amount),
+      escapeCsvField(opCount),
+    ].join(",");
+  });
+
+  return [header, ...rows].join("\n");
+}
+
+export function generateFlowEdgesFilename(
+  period: Period | string,
+  timestamp?: string
+): string {
+  const safePeriod = (String(period).replace(/[^a-z0-9]/gi, "").toLowerCase() || "custom") as Period;
+  return generateSafeFilename("lumenmap-flow", "edges", safePeriod, "csv", timestamp);
+}
+
+export function exportFlowEdgesToCsv(
+  edges: readonly FlowExportEdge[],
+  period: Period | string = "24h",
+  timestamp?: string
+): void {
+  if (!edges || edges.length === 0) {
+    console.warn("No flow edges to export");
+    return;
+  }
+  const csvContent = serializeFlowEdgesToCsv(edges);
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const filename = generateFlowEdgesFilename(period, timestamp);
+  downloadBlob(blob, filename);
+}
+

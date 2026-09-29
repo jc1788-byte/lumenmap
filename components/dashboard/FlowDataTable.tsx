@@ -3,6 +3,10 @@
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { cn, formatExactNumber, truncateAddress } from "@/lib/utils";
+import type { Period } from "@/lib/types";
+import { FlowExportButton } from "./FlowExportButton";
+
+export { FlowExportButton };
 
 /**
  * Minimal structural shapes of the Flow graph model. They are intentionally a
@@ -143,6 +147,8 @@ export interface FlowDataTableProps {
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   caption?: string;
+  period?: Period;
+  hideExport?: boolean;
 }
 
 const HEADER_CELL =
@@ -155,6 +161,8 @@ export function FlowDataTable({
   selectedId = null,
   onSelect,
   caption = "Flow graph edges",
+  period,
+  hideExport = false,
 }: FlowDataTableProps) {
   const edgeSort = useSort<EdgeSortKey>("amount");
   const nodeSort = useSort<NodeSortKey>("outflow");
@@ -219,14 +227,29 @@ export function FlowDataTable({
 
   if (edges.length === 0) {
     return (
-      <div className="rounded-xl border border-white/5 bg-black/20 p-6 text-center text-sm text-zinc-500">
-        No flow edges to display.
+      <div className="space-y-3">
+        {!hideExport && (
+          <div className="flex items-center justify-end px-1">
+            <FlowExportButton edges={edges} period={period} />
+          </div>
+        )}
+        <div className="rounded-xl border border-white/5 bg-black/20 p-6 text-center text-sm text-zinc-500">
+          No flow edges to display.
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {!hideExport && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <p className="text-xs text-zinc-400">
+            {caption} ({formatExactNumber(edges.length)} edges)
+          </p>
+          <FlowExportButton edges={edges} period={period} />
+        </div>
+      )}
       <div className="overflow-x-auto rounded-xl border border-white/5 bg-black/20">
         <table className="w-full min-w-[36rem] border-collapse text-sm">
           <caption className="px-3 py-2 text-left text-xs text-zinc-500">
