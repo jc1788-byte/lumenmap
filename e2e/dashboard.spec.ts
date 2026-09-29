@@ -308,4 +308,53 @@ test.describe("LumenMap dashboard user journey", () => {
     await expect(page.getByTestId("treemap-tile")).toHaveCount(6);
     await expect(tile(page, GROUP_LABELS.payments)).toBeVisible();
   });
+
+  test("keyboard shortcuts: ? overlay is focus-trapped, / focuses search, Escape closes the detail panel", async ({
+    page,
+  }) => {
+    // ? opens the shortcuts dialog; focus lands inside and Tab stays inside.
+    await page.keyboard.press("?");
+    const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute("aria-modal", "true");
+
+    const focusInsideDialog = () =>
+      page.evaluate(
+        () => document.activeElement?.closest('[role="dialog"]') !== null,
+      );
+    expect(await focusInsideDialog()).toBe(true);
+    await page.keyboard.press("Tab");
+    expect(await focusInsideDialog()).toBe(true);
+
+    // Escape closes it again.
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+
+    // ] and [ cycle the period forward/backward (focus is on the page).
+    const today = page.getByRole("radio", { name: "Today" });
+    await expect(today).toBeChecked();
+    await page.keyboard.press("]");
+    await expect(page.getByRole("radio", { name: "7 Days" })).toBeChecked();
+    await page.keyboard.press("[");
+    await expect(today).toBeChecked();
+
+    // / focuses the search box, and typing ? there does NOT reopen the
+    // overlay (no conflict with text entry).
+    await page.keyboard.press("/");
+    const search = page.getByTestId("dashboard-search-input");
+    await expect(search).toBeFocused();
+    await search.press("?");
+    await expect(search).toHaveValue("?");
+    await expect(dialog).toBeHidden();
+    await search.fill("");
+
+    // Enter on a focused tile opens the detail panel; Escape closes it.
+    await tile(page, GROUP_LABELS.payments).focus();
+    await page.keyboard.press("Enter");
+    // The panel's close button only exists while the panel is open.
+    const closeDetails = page.getByRole("button", { name: "Close details" });
+    await expect(closeDetails).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(closeDetails).toHaveCount(0);
+  });
 });

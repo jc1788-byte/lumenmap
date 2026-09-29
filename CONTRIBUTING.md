@@ -13,6 +13,7 @@ Thank you for your interest in contributing. This guide covers everything you ne
 - [Project structure](#project-structure)
 - [Available commands](#available-commands)
 - [Making changes](#making-changes)
+- [Keyboard shortcuts](#keyboard-shortcuts)
 - [Entity registry](#entity-registry)
 - [Branch and PR workflow](#branch-and-pr-workflow)
 - [Pull request expectations](#pull-request-expectations)
@@ -209,6 +210,22 @@ npm run sync:directory
 ```
 
 This overwrites `data/directory.json`. Commit both the script run and any manual changes to `entities.json` together.
+
+---
+
+## Keyboard shortcuts
+
+Dashboard shortcuts are defined once in [`lib/shortcuts.ts`](lib/shortcuts.ts)
+and listed in the README's [Keyboard shortcuts](README.md#keyboard-shortcuts)
+table. When you add or change a shortcut:
+
+1. Update `SHORTCUT_GROUPS` / `SHORTCUT_KEYS` in `lib/shortcuts.ts` (the `?`
+   overlay renders from them).
+2. Update the handler in
+   `components/dashboard/KeyboardShortcuts.tsx` (or the owning widget for
+   widget-scoped keys).
+3. Update the README table and the tests in
+   `components/dashboard/KeyboardShortcuts.test.tsx`.
 
 ---
 
