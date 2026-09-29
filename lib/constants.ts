@@ -82,6 +82,11 @@ export const TREEMAP_VIEWS = [
     label: "Accounts & Contracts",
     description: "Drill into top wallets, anchors, and Soroban contracts.",
   },
+  {
+    id: "flow",
+    label: "Payment Flow",
+    description: "Value movement and payment flows between accounts.",
+  },
 ] as const;
 
 export type TreemapViewId = (typeof TREEMAP_VIEWS)[number]["id"];

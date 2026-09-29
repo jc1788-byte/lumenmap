@@ -1,0 +1,708 @@
+"use client";
+
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
+import { useReducedMotion, truncateAddress, cn } from "@/lib/utils";
+import type { FlowNode, FlowEdge } from "@/lib/flow/types";
+import type { FlowTableNode, FlowTableEdge } from "./FlowDataTable";
+
+export interface FlowCanvasProps {
+  nodes: readonly (FlowNode | FlowTableNode)[];
+  edges: readonly (FlowEdge | FlowTableEdge)[];
+  selectedId?: string | null;
+  onSelect?: (id: string | null) => void;
+  width?: number;
+  height?: number;
+  className?: string;
+  showParallelList?: boolean;
+}
+
+interface NodePosition {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+}
+
+function getNodeCategoryColor(category?: string): string {
+  switch (category?.toLowerCase()) {
+    case "soroban":
+      return "#8b5cf6"; // var(--color-soroban)
+    case "payments":
+    case "exchange":
+      return "#10b981"; // var(--color-payments)
+    case "dex":
+    case "defi":
+      return "#f59e0b"; // var(--color-dex)
+    case "trustlines":
+    case "anchor":
+      return "#06b6d4"; // var(--color-trustlines)
+    case "account":
+    case "wallet":
+      return "#3b82f6"; // var(--color-account)
+    default:
+      return "#71717a"; // var(--color-other)
+  }
+}
+
+/**
+ * Computes deterministic settled node positions using a synchronous relaxation loop.
+ * When prefers-reduced-motion is true, this function produces settled positions
+ * without running any animation frames or creating force simulation jitter.
+ */
+function computeStaticLayout(
+  nodes: readonly (FlowNode | FlowTableNode)[],
+  edges: readonly (FlowEdge | FlowTableEdge)[],
+  width: number,
+  height: number,
+  iterations = 70,
+): Map<string, NodePosition> {
+  const positions = new Map<string, NodePosition>();
+  const n = nodes.length;
+  if (n === 0) return positions;
+
+  const cx = width / 2;
+  const cy = height / 2;
+  const minDim = Math.min(width, height);
+  const ringRadius = minDim * 0.32;
+
+  // Initialize nodes evenly spaced on an ellipse
+  nodes.forEach((node, i) => {
+    const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+    const baseRadius = 24;
+    positions.set(node.id, {
+      x: cx + ringRadius * Math.cos(angle),
+      y: cy + ringRadius * Math.sin(angle),
+      vx: 0,
+      vy: 0,
+      radius: baseRadius,
+    });
+  });
+
+  // Run relaxation iterations synchronously
+  for (let step = 0; step < iterations; step++) {
+    const alpha = Math.pow(0.94, step);
+
+    // 1. Center gravity
+    for (const [, p] of positions) {
+      p.vx += (cx - p.x) * 0.035 * alpha;
+      p.vy += (cy - p.y) * 0.035 * alpha;
+    }
+
+    // 2. Node-node repulsion
+    const arr = Array.from(positions.entries());
+    for (let i = 0; i < arr.length; i++) {
+      for (let j = i + 1; j < arr.length; j++) {
+        const [, p1] = arr[i];
+        const [, p2] = arr[j];
+        const dx = p1.x - p2.x;
+        const dy = p1.y - p2.y;
+        const distSq = dx * dx + dy * dy;
+        const dist = Math.sqrt(distSq) || 1;
+        const minDist = p1.radius + p2.radius + 30;
+
+        if (dist < 320) {
+          const strength = dist < minDist ? 4500 : 2500;
+          const force = (strength / (distSq + 100)) * alpha;
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+          p1.vx += fx;
+          p1.vy += fy;
+          p2.vx -= fx;
+          p2.vy -= fy;
+        }
+      }
+    }
+
+    // 3. Edge attraction (Hooke's spring)
+    for (const edge of edges) {
+      const p1 = positions.get(edge.source);
+      const p2 = positions.get(edge.destination);
+      if (!p1 || !p2) continue;
+
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const targetDist = 130;
+      const force = (dist - targetDist) * 0.045 * alpha;
+
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      p1.vx += fx;
+      p1.vy += fy;
+      p2.vx -= fx;
+      p2.vy -= fy;
+    }
+
+    // 4. Position update & clamping
+    for (const [, p] of positions) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.65;
+      p.vy *= 0.65;
+
+      const pad = p.radius + 24;
+      p.x = Math.max(pad, Math.min(width - pad, p.x));
+      p.y = Math.max(pad, Math.min(height - pad, p.y));
+    }
+  }
+
+  return positions;
+}
+
+export function FlowCanvas({
+  nodes,
+  edges,
+  selectedId = null,
+  onSelect,
+  width = 800,
+  height = 500,
+  className,
+  showParallelList = true,
+}: FlowCanvasProps) {
+  const containerId = useId();
+  const prefersReducedMotion = useReducedMotion();
+  const [manualPause, setManualPause] = useState(false);
+  const isReducedMotion = prefersReducedMotion || manualPause;
+
+  const staticPositions = useMemo(
+    () => computeStaticLayout(nodes, edges, width, height),
+    [nodes, edges, width, height],
+  );
+
+  const [animatedPositions, setAnimatedPositions] = useState<Map<string, NodePosition> | null>(null);
+
+  const positions = isReducedMotion ? staticPositions : (animatedPositions ?? staticPositions);
+
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const nodeRefs = useRef<Map<string, SVGGElement | null>>(new Map());
+
+  // Incident edges of the active node (either focused or selected or hovered)
+  const activeNodeId = focusedId ?? selectedId ?? hoveredId;
+
+  const incidentEdges = useMemo(() => {
+    if (!activeNodeId) return { incoming: new Set<string>(), outgoing: new Set<string>() };
+    const incoming = new Set<string>();
+    const outgoing = new Set<string>();
+    for (const edge of edges) {
+      if (edge.source === activeNodeId) outgoing.add(edge.id);
+      if (edge.destination === activeNodeId) incoming.add(edge.id);
+    }
+    return { incoming, outgoing };
+  }, [edges, activeNodeId]);
+
+  // Layout synchronization:
+  // When reduced-motion is preferred, calculate static settled layout immediately with 0 animation frames.
+  // When normal motion is preferred, run bounded simulation that settles and stops within ~35 frames.
+  useEffect(() => {
+    if (nodes.length === 0 || isReducedMotion) return;
+
+    // Normal motion: initial positions then bounded relaxation
+    let animationFrameId: number;
+    let step = 0;
+    const maxSteps = 40; // Strictly bounded: no continuous simulation jitter
+
+    const currentPositions = new Map<string, NodePosition>(
+      computeStaticLayout(nodes, edges, width, height, 15),
+    );
+
+    const tick = () => {
+      if (step >= maxSteps) return;
+
+      const alpha = Math.pow(0.92, step);
+      const cx = width / 2;
+      const cy = height / 2;
+
+      // Gravity
+      for (const [, p] of currentPositions) {
+        p.vx += (cx - p.x) * 0.03 * alpha;
+        p.vy += (cy - p.y) * 0.03 * alpha;
+      }
+
+      // Repulsion
+      const arr = Array.from(currentPositions.entries());
+      for (let i = 0; i < arr.length; i++) {
+        for (let j = i + 1; j < arr.length; j++) {
+          const [, p1] = arr[i];
+          const [, p2] = arr[j];
+          const dx = p1.x - p2.x;
+          const dy = p1.y - p2.y;
+          const distSq = dx * dx + dy * dy;
+          const dist = Math.sqrt(distSq) || 1;
+          if (dist < 300) {
+            const force = (2800 / (distSq + 100)) * alpha;
+            p1.vx += (dx / dist) * force;
+            p1.vy += (dy / dist) * force;
+            p2.vx -= (dx / dist) * force;
+            p2.vy -= (dy / dist) * force;
+          }
+        }
+      }
+
+      // Springs
+      for (const edge of edges) {
+        const p1 = currentPositions.get(edge.source);
+        const p2 = currentPositions.get(edge.destination);
+        if (!p1 || !p2) continue;
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const force = (dist - 130) * 0.04 * alpha;
+        p1.vx += (dx / dist) * force;
+        p1.vy += (dy / dist) * force;
+        p2.vx -= (dx / dist) * force;
+        p2.vy -= (dy / dist) * force;
+      }
+
+      // Update positions
+      for (const [, p] of currentPositions) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.65;
+        p.vy *= 0.65;
+        const pad = p.radius + 24;
+        p.x = Math.max(pad, Math.min(width - pad, p.x));
+        p.y = Math.max(pad, Math.min(height - pad, p.y));
+      }
+
+      setAnimatedPositions(new Map(currentPositions));
+      step++;
+      animationFrameId = requestAnimationFrame(tick);
+    };
+
+    animationFrameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [nodes, edges, width, height, isReducedMotion]);
+
+  // Keyboard navigation across nodes
+  const focusNodeByIndex = useCallback(
+    (index: number) => {
+      const targetNode = nodes[index];
+      if (!targetNode) return;
+      const el = nodeRefs.current.get(targetNode.id);
+      if (el) {
+        el.focus();
+        setFocusedId(targetNode.id);
+        setAnnouncement(
+          `Focused ${targetNode.label} (${truncateAddress(targetNode.id)}), node ${index + 1} of ${nodes.length}. Press Enter or Space to view details.`,
+        );
+      }
+    },
+    [nodes],
+  );
+
+  const handleNodeKeyDown = useCallback(
+    (event: KeyboardEvent<SVGGElement>, nodeId: string, index: number) => {
+      const node = nodes[index];
+      if (!node) return;
+
+      switch (event.key) {
+        case "Enter":
+        case " ":
+          event.preventDefault();
+          onSelect?.(selectedId === nodeId ? null : nodeId);
+          setAnnouncement(
+            selectedId === nodeId
+              ? "Selection cleared."
+              : `Selected ${node.label} (${truncateAddress(node.id)}). Detail panel updated.`,
+          );
+          break;
+
+        case "ArrowRight":
+        case "ArrowDown":
+          event.preventDefault();
+          focusNodeByIndex((index + 1) % nodes.length);
+          break;
+
+        case "ArrowLeft":
+        case "ArrowUp":
+          event.preventDefault();
+          focusNodeByIndex((index - 1 + nodes.length) % nodes.length);
+          break;
+
+        case "Home":
+          event.preventDefault();
+          focusNodeByIndex(0);
+          break;
+
+        case "End":
+          event.preventDefault();
+          focusNodeByIndex(nodes.length - 1);
+          break;
+
+        case "Escape":
+          event.preventDefault();
+          onSelect?.(null);
+          setAnnouncement("Selection cleared.");
+          break;
+      }
+    },
+    [nodes, selectedId, onSelect, focusNodeByIndex],
+  );
+
+  const handleNodeClick = useCallback(
+    (nodeId: string) => {
+      const node = nodes.find((n) => n.id === nodeId);
+      onSelect?.(selectedId === nodeId ? null : nodeId);
+      if (node) {
+        setAnnouncement(
+          selectedId === nodeId
+            ? "Selection cleared."
+            : `Selected ${node.label}. Detail panel updated.`,
+        );
+      }
+    },
+    [nodes, selectedId, onSelect],
+  );
+
+  const arrowMarkerId = `flow-arrow-${containerId}`;
+  const arrowMarkerHighlightId = `flow-arrow-highlight-${containerId}`;
+  const arrowMarkerIncomingId = `flow-arrow-incoming-${containerId}`;
+
+  return (
+    <div className={cn("space-y-4", className)}>
+      {/* Screen reader live region */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="flow-canvas-announcement"
+      >
+        {announcement}
+      </div>
+
+      {/* Canvas toolbar with accessibility controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-400">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-zinc-300">Keyboard shortcuts:</span>
+          <span>Tab/Arrows to navigate · Enter/Space to select · Esc to clear</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {isReducedMotion && (
+            <span
+              data-testid="reduced-motion-badge"
+              className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-zinc-300"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              Reduced motion active (jitter disabled)
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setManualPause((p) => !p)}
+            className="rounded px-2 py-0.5 text-xs text-zinc-400 hover:bg-white/5 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-stellar-light"
+            aria-pressed={isReducedMotion}
+          >
+            {isReducedMotion ? "Resume layout animation" : "Pause layout animation"}
+          </button>
+        </div>
+      </div>
+
+      {/* SVG Canvas */}
+      <div className="relative overflow-hidden rounded-xl border border-white/5 bg-black/30 p-2">
+        <svg
+          data-testid="flow-canvas"
+          viewBox={`0 0 ${width} ${height}`}
+          className="h-auto w-full select-none"
+          role="region"
+          aria-label="Payment flow graph. Use Tab or Arrow keys to focus nodes and Enter to activate detail."
+        >
+          <style>{`
+            g[tabindex]:focus-visible { outline: none; }
+            g[tabindex]:focus-visible .flow-focus-ring { display: block !important; }
+            .flow-focus-ring { display: none; }
+            ${isReducedMotion ? "* { transition: none !important; animation: none !important; }" : ""}
+          `}</style>
+
+          <defs>
+            {/* Standard arrow marker */}
+            <marker
+              id={arrowMarkerId}
+              viewBox="0 0 10 10"
+              refX="18"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#71717a" opacity="0.8" />
+            </marker>
+            {/* Outgoing highlight arrow marker */}
+            <marker
+              id={arrowMarkerHighlightId}
+              viewBox="0 0 10 10"
+              refX="18"
+              refY="5"
+              markerWidth="7"
+              markerHeight="7"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+            </marker>
+            {/* Incoming highlight arrow marker */}
+            <marker
+              id={arrowMarkerIncomingId}
+              viewBox="0 0 10 10"
+              refX="18"
+              refY="5"
+              markerWidth="7"
+              markerHeight="7"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#a78bfa" />
+            </marker>
+          </defs>
+
+          {/* Render directed edges */}
+          <g aria-hidden="true" className="flow-edges-layer">
+            {edges.map((edge) => {
+              const p1 = positions.get(edge.source);
+              const p2 = positions.get(edge.destination);
+              if (!p1 || !p2) return null;
+
+              const isOutgoing = incidentEdges.outgoing.has(edge.id);
+              const isIncoming = incidentEdges.incoming.has(edge.id);
+              const isHighlighted = isOutgoing || isIncoming;
+              const isDimmed = activeNodeId !== null && !isHighlighted;
+
+              // Calculate curved path midpoint
+              const dx = p2.x - p1.x;
+              const dy = p2.y - p1.y;
+              const midX = (p1.x + p2.x) / 2;
+              const midY = (p1.y + p2.y) / 2;
+              // Subtle curve offset
+              const normalX = -dy * 0.12;
+              const normalY = dx * 0.12;
+              const ctrlX = midX + normalX;
+              const ctrlY = midY + normalY;
+
+              const strokeColor = isOutgoing
+                ? "#38bdf8"
+                : isIncoming
+                  ? "#a78bfa"
+                  : "#52525b";
+
+              const marker = isOutgoing
+                ? `url(#${arrowMarkerHighlightId})`
+                : isIncoming
+                  ? `url(#${arrowMarkerIncomingId})`
+                  : `url(#${arrowMarkerId})`;
+
+              return (
+                <g key={edge.id} opacity={isDimmed ? 0.18 : 1}>
+                  <path
+                    d={`M ${p1.x} ${p1.y} Q ${ctrlX} ${ctrlY} ${p2.x} ${p2.y}`}
+                    fill="none"
+                    stroke={strokeColor}
+                    strokeWidth={isHighlighted ? 2.5 : 1.25}
+                    markerEnd={marker}
+                    className="transition-colors duration-150"
+                  />
+                </g>
+              );
+            })}
+          </g>
+
+          {/* Render focusable node targets */}
+          <g className="flow-nodes-layer">
+            {nodes.map((node, index) => {
+              const pos = positions.get(node.id);
+              if (!pos) return null;
+
+              const isSelected = selectedId === node.id;
+              const isFocused = focusedId === node.id;
+              const isHovered = hoveredId === node.id;
+              const isIncident =
+                activeNodeId !== null &&
+                activeNodeId !== node.id &&
+                (incidentEdges.incoming.has(node.id) ||
+                  incidentEdges.outgoing.has(node.id) ||
+                  edges.some(
+                    (e) =>
+                      (e.source === activeNodeId && e.destination === node.id) ||
+                      (e.destination === activeNodeId && e.source === node.id),
+                  ));
+
+              const categoryColor = getNodeCategoryColor(node.category);
+              const r = pos.radius;
+
+              return (
+                <g
+                  key={node.id}
+                  id={`node-${node.id}`}
+                  data-testid={`flow-node-${node.id}`}
+                  ref={(el) => {
+                    nodeRefs.current.set(node.id, el);
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-pressed={isSelected}
+                  aria-label={`Node ${node.label} (${truncateAddress(node.id)}), category ${node.category ?? "unclassified"}. ${isSelected ? "Selected." : ""}`}
+                  transform={`translate(${pos.x}, ${pos.y})`}
+                  onClick={() => handleNodeClick(node.id)}
+                  onFocus={() => {
+                    setFocusedId(node.id);
+                    setAnnouncement(
+                      `Focused ${node.label} (${truncateAddress(node.id)}). Press Enter to view details.`,
+                    );
+                  }}
+                  onBlur={() => setFocusedId(null)}
+                  onMouseEnter={() => setHoveredId(node.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  onKeyDown={(e) => handleNodeKeyDown(e, node.id, index)}
+                  className="cursor-pointer focus:outline-none focus-visible:outline-none"
+                  style={{
+                    transition: isReducedMotion ? "none" : "transform 0.15s ease",
+                  }}
+                >
+                  {/* High contrast visible focus indicator (exceeds WCAG 2.1 AA 3:1 ratio) */}
+                  <circle
+                    className="flow-focus-ring"
+                    r={r + 6}
+                    fill="none"
+                    stroke="#ffffff"
+                    strokeWidth={2.5}
+                    style={{
+                      display: isFocused || isSelected ? "block" : undefined,
+                      filter: "drop-shadow(0 0 5px rgba(255, 255, 255, 0.85))",
+                    }}
+                  />
+
+                  {/* Dark gap separator for outer ring visibility against light nodes */}
+                  {(isFocused || isSelected) && (
+                    <circle
+                      r={r + 3}
+                      fill="none"
+                      stroke="#0B0E14"
+                      strokeWidth={2}
+                    />
+                  )}
+
+                  {/* Selection indicator ring */}
+                  {isSelected && !isFocused && (
+                    <circle
+                      r={r + 5}
+                      fill="none"
+                      stroke="var(--color-focus, #8e7cff)"
+                      strokeWidth={2}
+                    />
+                  )}
+
+                  {/* Node base circle */}
+                  <circle
+                    r={r}
+                    fill={categoryColor}
+                    stroke={isSelected || isFocused ? "#ffffff" : isHovered ? "#d4d4d8" : "#18181b"}
+                    strokeWidth={isSelected || isFocused ? 2.5 : 1.5}
+                    opacity={isSelected || isFocused || isHovered || isIncident || !activeNodeId ? 1 : 0.4}
+                    className="transition-opacity duration-150"
+                  />
+
+                  {/* Category icon or letter badge inside node */}
+                  <text
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fill="#ffffff"
+                    fontSize={11}
+                    fontWeight={600}
+                    className="pointer-events-none select-none font-sans"
+                  >
+                    {(node.category || node.label).slice(0, 3).toUpperCase()}
+                  </text>
+
+                  {/* Node text label below bubble */}
+                  <text
+                    y={r + 14}
+                    textAnchor="middle"
+                    fill={isSelected || isFocused ? "#ffffff" : "#a1a1aa"}
+                    fontSize={11}
+                    fontWeight={isSelected || isFocused ? 600 : 400}
+                    className="pointer-events-none select-none font-mono tracking-tight"
+                  >
+                    {node.label}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+      </div>
+
+      {/* Parallel list navigation: mirrors selection and provides a linear keyboard alternative */}
+      {showParallelList && nodes.length > 0 && (
+        <div
+          role="region"
+          aria-label="Cluster accounts parallel navigation"
+          className="rounded-xl border border-white/5 bg-black/20 p-4"
+        >
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              Cluster Accounts ({nodes.length})
+            </h3>
+            <span className="text-xs text-zinc-500">
+              Select any account to view in canvas and detail panel
+            </span>
+          </div>
+
+          <div
+            role="listbox"
+            aria-label="Cluster accounts list"
+            className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2 md:grid-cols-3"
+          >
+            {nodes.map((node) => {
+              const isSelected = selectedId === node.id;
+              const isFocused = focusedId === node.id;
+              const categoryColor = getNodeCategoryColor(node.category);
+
+              return (
+                <div
+                  key={node.id}
+                  role="option"
+                  tabIndex={0}
+                  aria-selected={isSelected}
+                  onClick={() => handleNodeClick(node.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleNodeClick(node.id);
+                    }
+                  }}
+                  className={cn(
+                    "flex cursor-pointer items-center justify-between rounded-lg border border-white/5 px-3 py-2 text-xs transition-colors hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-stellar-light",
+                    isSelected && "border-stellar-light/40 bg-white/10 text-white",
+                    isFocused && "ring-1 ring-white",
+                  )}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: categoryColor }}
+                      aria-hidden="true"
+                    />
+                    <span className="truncate font-medium text-zinc-200">
+                      {node.label}
+                    </span>
+                  </div>
+                  <span className="shrink-0 font-mono text-[10px] text-zinc-500">
+                    {truncateAddress(node.id)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

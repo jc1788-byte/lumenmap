@@ -1,3 +1,5 @@
+(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
 // Add global test utilities and setup here.
 
 if (typeof globalThis.ResizeObserver === "undefined") {
