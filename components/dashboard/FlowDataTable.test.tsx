@@ -93,6 +93,13 @@ describe("FlowDataTable", () => {
     expect(tables).toHaveLength(2);
     expect(tables[1].querySelectorAll("tbody tr")).toHaveLength(nodes.length);
   });
+
+  it("does not present an unknown funding amount as zero", () => {
+    act(() => root.render(
+      <FlowDataTable nodes={nodes} edges={[{ ...edges[0], amount: "0", amountComplete: false }]} />,
+    ));
+    expect(edgeBodyRows()[0].querySelectorAll("td")[3].textContent).toBe("—");
+  });
 });
 
 describe("FlowViewToggle", () => {

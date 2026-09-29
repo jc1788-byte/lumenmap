@@ -466,6 +466,32 @@ curl "http://localhost:3000/api/v1/timeseries?period=7d"
 
 ---
 
+### `GET /api/v1/flow`
+
+Returns a directed payment-flow graph for the selected period. The dashboard's
+Flow view opens the period overview; double-click an account node or use the
+account detail action to request its direct counterparties. Use **Back to period
+overview** to leave the 1-hop drill.
+
+| Param | Values | Default |
+| --- | --- | --- |
+| `period` | `1d`, `7d`, `30d`, `month` | `1d` |
+| `network` | `mainnet`, `testnet` | `mainnet` |
+| `account` | Stellar `G` account address | absent (period overview) |
+
+The response has `nodes`, `edges`, `account`, and `sampled` fields. Each edge
+has a direction, asset identity, amount in stroops, and operation count. The
+API ranks at most 100 edges **after** applying the account filter, so an ego
+view never includes edges between two counterparties. An account without any
+edges returns its node and an empty `edges` array. Fixture mode includes a
+known Kraken → Lobstr edge for local verification.
+
+For funding and account-drain operations, Hubble does not provide an amount in
+the fields used by this query. Such edges have `amountComplete: false`; the
+table shows an em dash instead of suggesting their measured amount is zero.
+
+---
+
 ### Planned endpoints
 
 | Endpoint | Description |

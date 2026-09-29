@@ -142,7 +142,8 @@ follows the common conventions above.
 - **Nodes.** One Stellar account ID that is the source or destination of at least
   one rendered edge. Labels change display names only. Node metrics (in/out
   operation count, in/out degree, in/out volume per asset) describe the sample,
-  not network-wide account totals.
+  not network-wide account totals. An empty ego result retains the selected
+  account node so the empty state can identify it.
 - **Edges.** Source → destination of a successful `payment`,
   `path_payment_strict_send`, `path_payment_strict_receive`, `create_account`
   (funding edge), or `account_merge` (drain edge) operation. Operations for the
@@ -150,10 +151,13 @@ follows the common conventions above.
   operation count. Failed operations, self-payments, rows missing a source or
   destination, and other operation types are excluded. Edge amounts are not the
   Payment volume metric, which counts direct `payment` operations only.
-- **Sampling and coverage.** Only the top-N edges, ranked by operation count and
-  then by amount within the same asset, are returned. Coverage reports returned
-  vs. total edges and operations and a `sampled` flag; an absent edge means "not
-  in the sample", not "no activity".
+  Funding and account-drain rows without a reliable amount are counted as
+  operations, but their edge has `amountComplete: false` and the UI suppresses
+  the partial amount.
+- **Sampling and coverage.** Only the top 100 edges, ranked by operation count
+  and then by amount within the same asset, are returned. The API sets
+  `sampled` when more edges exist. An absent edge can therefore be outside the
+  sample rather than absent from the network.
 - **Asset modes.** Each edge has exactly one asset identity (code + issuer;
   native XLM is explicit). Asset modes such as XLM or USDC filter to one asset.
   Amounts across assets are never summed and no price conversion is applied.
