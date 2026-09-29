@@ -286,11 +286,11 @@ export interface ActivityKpis {
     unit: "count";
     value: number;
   };
-  activeDestinationAccounts: {
+  activeDestinationAccounts?: {
     kind: "entity_count";
     unit: "count";
-    value: number;
-  };
+    value?: number | null;
+  } | null;
 }
 
 export interface TreemapCoverage {

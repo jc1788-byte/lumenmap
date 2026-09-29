@@ -90,7 +90,7 @@ export function KpiCards() {
         const Icon = item.icon;
         const definition = METRIC_DEFINITIONS[item.key];
         const kpi = data.kpis[item.key];
-        const value = typeof kpi === "string" ? kpi : kpi.value;
+        const value = typeof kpi === "string" ? kpi : kpi?.value;
         const points = series[item.key];
         return (
           <Card key={item.key}>
@@ -106,7 +106,7 @@ export function KpiCards() {
                 data-testid={`kpi-value-${item.key}`}
                 className="text-2xl font-semibold text-text-primary"
               >
-                {item.format(value as never)}
+                {value == null ? "Unavailable" : item.format(value as never)}
               </p>
               {freshnessState === "stale" ? (
                 <p className="mt-0.5 text-xs font-medium text-amber-400">

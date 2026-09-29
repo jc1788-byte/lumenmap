@@ -59,7 +59,10 @@ export const activityKpisSchema = z.object({
   topCategory: z.string().min(1),
   activeContracts: entityCountMetricSchema,
   activeWallets: entityCountMetricSchema,
-  activeDestinationAccounts: entityCountMetricSchema,
+  activeDestinationAccounts: entityCountMetricSchema
+    .extend({ value: finiteNumberSchema.nullable().optional() })
+    .nullable()
+    .optional(),
 });
 
 export const treemapNodeTypeSchema = z.enum([
