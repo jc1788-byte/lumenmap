@@ -138,6 +138,7 @@ export function rateLimitExceededResponse(result: RateLimitResult): NextResponse
     {
       status: 429,
       headers: {
+        "Cache-Control": "no-store",
         "Retry-After": String(result.retryAfterSeconds),
         "X-RateLimit-Limit": String(result.limit),
         "X-RateLimit-Remaining": "0",

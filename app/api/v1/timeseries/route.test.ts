@@ -118,3 +118,61 @@ describe("GET /api/v1/timeseries", () => {
     });
   });
 });
+
+describe("timeseries cache headers", () => {
+  test("in-progress periods get a shorter shared TTL than complete periods", async () => {
+    const inProgress = await handleTimeseriesRequest(
+      new Request("http://localhost/api/v1/timeseries?period=1d"),
+      async (period) => ({
+        ...mockTimeseriesResponse(period),
+        isPeriodComplete: false,
+      }),
+    );
+    const complete = await handleTimeseriesRequest(
+      new Request("http://localhost/api/v1/timeseries?period=30d"),
+      async (period) => ({
+        ...mockTimeseriesResponse(period),
+        isPeriodComplete: true,
+      }),
+    );
+
+    assert.equal(inProgress.status, 200);
+    assert.equal(complete.status, 200);
+    assert.equal(
+      inProgress.headers.get("cache-control"),
+      "public, max-age=60, s-maxage=60",
+    );
+    assert.equal(
+      complete.headers.get("cache-control"),
+      "public, max-age=900, s-maxage=900",
+    );
+  });
+
+  test("mirrors the shared TTL onto CDN cache headers", async () => {
+    const response = await handleTimeseriesRequest(
+      new Request("http://localhost/api/v1/timeseries?period=7d"),
+      async (period) => ({
+        ...mockTimeseriesResponse(period),
+        isPeriodComplete: true,
+      }),
+    );
+
+    const cacheControl = response.headers.get("cache-control");
+    assert.equal(response.headers.get("cdn-cache-control"), cacheControl);
+    assert.equal(
+      response.headers.get("vercel-cdn-cache-control"),
+      cacheControl,
+    );
+  });
+
+  test("never caches error responses", async () => {
+    const invalid = await handleTimeseriesRequest(
+      new Request("http://localhost/api/v1/timeseries?period=1y"),
+      async (period) => mockTimeseriesResponse(period),
+    );
+
+    assert.equal(invalid.status, 400);
+    assert.equal(invalid.headers.get("cache-control"), "no-store");
+  });
+});
+
