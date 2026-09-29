@@ -25,6 +25,7 @@ export interface FlowViewProps {
 export function FlowView({ initialViewMode = "graph", className }: FlowViewProps) {
   const { period, selectedNode, setSelectedNode } = useDashboard();
   const [viewMode, setViewMode] = useState<FlowViewMode>(initialViewMode);
+  const [showProtocolClusters, setShowProtocolClusters] = useState(true);
   const prefersReducedMotion = useReducedMotion();
 
   // Load fixture graph for current period
@@ -77,6 +78,7 @@ export function FlowView({ initialViewMode = "graph", className }: FlowViewProps
             id: matchedNode.id,
             type: "account",
             category: matchedNode.category,
+            protocol: matchedNode.protocol,
             opCount: totalOps,
             nodeId: matchedNode.id,
           },
@@ -122,8 +124,24 @@ export function FlowView({ initialViewMode = "graph", className }: FlowViewProps
           </p>
         </div>
 
-        {/* View toggle (Graph / Table) */}
-        <div className="flex items-center gap-2">
+        {/* View toggle (Graph / Table) + Protocol cluster toggle */}
+        <div className="flex flex-wrap items-center gap-2">
+          {viewMode === "graph" && (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={showProtocolClusters}
+              data-testid="protocol-cluster-toggle"
+              onClick={() => setShowProtocolClusters((v) => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-stellar-light ${
+                showProtocolClusters
+                  ? "border-stellar-light/40 bg-stellar-light/10 text-stellar-light"
+                  : "border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              <span>Protocol clusters</span>
+            </button>
+          )}
           <FlowViewToggle view={viewMode} onChange={setViewMode} />
         </div>
       </div>
@@ -136,6 +154,8 @@ export function FlowView({ initialViewMode = "graph", className }: FlowViewProps
           selectedId={activeSelectedId}
           onSelect={handleSelectNode}
           showParallelList={true}
+          showProtocolClusters={showProtocolClusters}
+          onToggleProtocolClusters={setShowProtocolClusters}
         />
       ) : (
         <FlowDataTable

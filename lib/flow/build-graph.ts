@@ -49,6 +49,7 @@ export function shortenAccountId(id: string): string {
 export type FlowNodeLabel = {
   label: string;
   category?: string;
+  protocol?: string;
 };
 
 export type BuildFlowGraphOptions = {
@@ -213,6 +214,7 @@ export function buildFlowGraph(
     const resolvedLabel =
       typeof resolved === "string" ? resolved : (resolved?.label ?? undefined);
     const category = typeof resolved === "string" ? undefined : resolved?.category;
+    const protocol = typeof resolved === "string" ? undefined : resolved?.protocol;
 
     const metricsWithDegrees: FlowNodeMetrics = {
       ...metrics,
@@ -228,6 +230,9 @@ export function buildFlowGraph(
 
     if (category) {
       node.category = category;
+    }
+    if (protocol) {
+      node.protocol = protocol;
     }
 
     return node;

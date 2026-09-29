@@ -222,4 +222,33 @@ describe("getFixtureFlowGraph", () => {
       false,
     );
   });
+
+  it("attaches protocol to FlowNode when resolveLabel returns protocol", () => {
+    const graph = buildFlowGraph([payment({ source: A, destination: B })], {
+      resolveLabel: (id) =>
+        id === A
+          ? { label: "Alpha Protocol Account", category: "defi", protocol: "Alpha" }
+          : undefined,
+    });
+
+    const nodeA = graph.nodes.find((n) => n.id === A);
+    const nodeB = graph.nodes.find((n) => n.id === B);
+
+    assert.equal(nodeA?.protocol, "Alpha");
+    assert.equal(nodeA?.label, "Alpha Protocol Account");
+    assert.equal(nodeA?.category, "defi");
+
+    assert.equal(nodeB?.protocol, undefined);
+  });
+
+  it("resolves distinct protocols in the fixture graph", () => {
+    const response = getFixtureFlowGraph();
+    const circleNodes = response.graph.nodes.filter((n) => n.protocol === "Circle");
+    const soroswapNodes = response.graph.nodes.filter((n) => n.protocol === "Soroswap");
+    const ungroupedNodes = response.graph.nodes.filter((n) => !n.protocol);
+
+    assert.ok(circleNodes.length >= 2, "Expected at least 2 Circle nodes");
+    assert.ok(soroswapNodes.length >= 2, "Expected at least 2 Soroswap nodes");
+    assert.ok(ungroupedNodes.length >= 1, "Expected ungrouped unknown nodes");
+  });
 });

@@ -28,63 +28,102 @@ Single-page dashboard. Data comes from [Hubble](https://developers.stellar.org/d
 
 ### Available now
 
-- Hierarchical treemap with D3 squarified layout, drill-down, and breadcrumbs
-- Two views: **Operation Types** and **Accounts & Contracts**
-- Period filters: 1 day, 7 days, 30 days, calendar month
-- KPI cards: total operations, Soroban share, top category, active contracts (top-200 observed contracts)
+- Hierarchical treemap with D3 squarified layout, drill-down, and breadcrumbs (**Operation Types** and **Accounts & Contracts**)
+- Per-asset payment volume treemap view (native XLM implemented, issued asset support)
+- Daily and hourly operation & transaction time-series charts (`GET /api/v1/timeseries`) with UTC bucket alignment
 - Stacked category-share area chart (absolute and % modes, UTC buckets)
-- Entity labels for known wallets and contracts
+- Ranked protocol activity bar chart / dApp leaderboard grouped by protocol
+- Hour-of-week activity heatmap (7×24 UTC matrix)
+- KPI cards with sparklines: total operations, Soroban share, top category, active contracts (top-200 observed contracts)
+- Side-by-side period comparison mode with delta badges
+- Network toggle: Seamless switching between **Mainnet** and **Testnet** with URL persistence (`?network=testnet`)
+- Named saved research views with local storage persistence
+- Search across addresses, contracts, assets, and protocols with direct jump and Stellar Expert links
+- PDF export for dashboard KPIs, chart metadata, and summary tables
+- Soroban function breakdown on contract details
 - Detail panel with share, activity count, protocol, and address
-- Responsive dark layout
+- Pluggable cache drivers (in-memory Map and Redis/KV) with stable keys and hit/miss telemetry
+- Per-IP rate limiting (`RATE_LIMIT_V1_MAX`) with standard `429` responses and `Retry-After` headers
+- Public API with OpenAPI 3.1 specification served at `/api/openapi.json`
+- **Flow view (MVP)**: Directed payment-flow graph and accessible data-table alternative (`FlowDataTable`) with sorting and keyboard operability
+- **Protocol cluster grouping overlay**: Bubblemaps-style visual hulls and group labels around known protocol addresses with non-destructive toggle controls
 
 ### Coming next
 
-- Daily and hourly operation trend charts
-- Unique active wallet counts
-- dApp leaderboard grouped by protocol
-- Search by address, contract, or protocol
-- Payment volume in XLM and USDC
-- Public API
+- Unique active wallet counts across extended windows (Hubble deduplication)
+- Payment volume expansion for multi-asset issued tokens (live BigQuery USDC ingestion)
+- Multi-hop payment path flow tracing and deep transaction counterparty graphs
+- Live contract TVL ingestion via BigQuery state adapters
+- Real-time Soroban streaming and alerts
+- Public Flow API endpoint (`GET /api/v1/flow`)
 
-Operation count is available today. Transaction count, active-account count, payment volume, and TVL are not. See the [metric methodology](docs/metric-methodology.md) before comparing metrics.
+Operation count, transaction count, XLM payment volume, and protocol rankings are available today. Unique active-account deduplication and live contract TVL are planned. See the [metric methodology](docs/metric-methodology.md) before comparing metrics.
+
+---
+
+## Flow & Wallet-Cluster Roadmap
+
+The **Flow** view visualizes value movement between Stellar accounts across payment and funding operations.
+
+- **Canvas & graph model**: Directed value flows between counterparties (`payment`, `path_payment_strict_send`, `path_payment_strict_receive`, `create_account`, `account_merge`).
+- **Accessible companion view**: Full `FlowDataTable` and `FlowViewToggle` (Graph / Table) providing keyboard-operable, sortable tabular data for screen readers and tabular analysis.
+- **Protocol cluster grouping overlay**: Automatically clusters and hull-highlights nodes belonging to known protocols (e.g. Circle, Soroswap, Kraken, MoneyGram) based on the entity registry. A non-destructive toggle allows switching cluster overlays on and off without affecting layout positions. Unknown nodes remain ungrouped.
+- **Feature flag & URL state**: Controlled via the `NEXT_PUBLIC_FF_FLOW` environment variable and `?view=flow` URL parameter (renders `data-testid="flow-view"`).
+- **Methodology & ADR**: Anchored to the formal [payment-flow methodology](docs/metric-methodology.md#payment-flow-graph) and in-app [/methodology#flow](lib/metrics/flow-methodology-anchors.ts) (`#flow-nodes`, `#flow-edges`, `#flow-sampling`, `#flow-asset-modes`).
+
+---
+
+## Production Dependency on Hubble Schema Health
+
+LumenMap depends on upstream [Hubble](https://developers.stellar.org/docs/data/analytics/hubble) BigQuery datasets (`crypto-stellar.crypto_stellar_dbt`):
+
+- **Core tables**: `enriched_history_operations`, `enriched_history_operations_soroban`, `hourly_soroban_fee_agg_contract`.
+- **Schema health & contract stability**: Queries depend on strict column typing and nullability guarantees. Schema drift and upstream breaking changes are tracked via the schema-drift checklist in `docs/hubble/` and validated through query smoke tests (`npm run test:hubble`).
+- **Telemetry & cost tuning**: Upstream queries log BigQuery bytes billed in structured logs (`activity.query.complete`) and report upstream query readiness via `/api/health`.
+- **Intraday batch lag**: Hubble refreshes in scheduled intraday intervals. In-flight periods are marked with `isPeriodComplete: false` until all ledgers in the period window are ingested. Responses are cached with configurable TTLs to balance freshness and cost.
 
 ---
 
 ## Roadmap
 
-### Phase 1: Activity charts
+### Phase 1: Activity charts (Shipped)
 
-- Operation and transaction counts over time
-- Soroban vs classic share trends
+- Operation and transaction counts over time (`GET /api/v1/timeseries`)
+- Soroban vs classic share trends and category share area chart
 - Sparklines on KPI cards
-- `GET /api/v1/timeseries`
+- Pluggable cache drivers and rate limiting
 
-### Phase 2: Wallets and dApps
+### Phase 2: Wallets and dApps (Shipped / In Progress)
 
-- Unique active accounts per period
-- Top senders and receivers
-- Soroban contracts grouped and labeled by protocol
-- Search and filter
-- Links out to Stellar Expert and Stellarscan
+- Ranked protocol activity bar chart (Shipped)
+- Search across addresses, contracts, assets, and protocols (Shipped)
+- Soroban function breakdown per contract (Shipped)
+- Flow view MVP with interactive canvas & accessible data table (Shipped)
+- Protocol cluster grouping overlay on Flow nodes (Shipped)
+- Unique active accounts deduplication (In Progress)
 
-### Phase 3: Treemap depth
+### Phase 3: Depth & Multi-Asset (In Progress)
 
-- Larger entity registry via `sync:directory` and manual entries
-- Payment volume next to operation counts
-- Soroban function breakdown per contract
-- Testnet support
+- Larger entity registry via `sync:directory` and manual entries (Shipped)
+- Native XLM payment volume treemap view (Shipped)
+- Multi-asset issued payment volume (USDC) (In Progress)
+- Protocol TVL live BigQuery ingestion (In Progress)
+- Testnet support toggle (Shipped)
 
-### Phase 4: Product polish
+### Phase 4: Product polish (Shipped / In Progress)
 
-- Pages: Overview, Activity, Charts
-- Headline summary: today’s tx count, active wallets, top dApp
-- Public `/api/v1/activity` and `/api/v1/timeseries` with documentation
+- Side-by-side period comparison mode (Shipped)
+- Named saved research views in local storage (Shipped)
+- PDF report export for dashboard KPIs (Shipped)
+- Public OpenAPI 3.1 specification at `/api/openapi.json` (Shipped)
+- Multi-hop payment path flow tracing (Planned)
 
-### Phase 5: Production
+### Phase 5: Production & Scale
 
-- Redis or KV cache instead of in-memory server cache
-- BigQuery cost tuning
-- Broader protocol coverage for anchors, DeFi, and issuers
+- Redis or KV cache driver (Shipped)
+- BigQuery cost and bytes-billed monitoring (Shipped)
+- Schema drift validation and upstream health probes (Shipped)
+- Broader protocol coverage for anchors, DeFi, and issuers (Ongoing)
 
 ---
 
@@ -129,15 +168,18 @@ explicit disabled message). Ops / transactions remain available.
 | Top accounts | Most active wallets per operation type |
 | Top contracts | Most invoked Soroban contracts |
 | Soroban functions | Counts per function and per contract |
+| Operation & transaction timeseries | UTC-bucketed counts for trend analysis |
+| Protocol activity | Ranked operation counts grouped by protocol |
+| Payment volume | Native XLM volume and account aggregates |
 
 ### Queries planned
 
 | Metric | Source |
 | --- | --- |
-| Daily operation time series | Hubble hourly aggregates |
-| Unique active wallets | `enriched_history_operations` |
-| dApps by protocol | `entities.json` and contract grouping |
-| Payment volume | Hubble amount fields |
+| Unique active wallets | Deduplicated `enriched_history_operations` |
+| Issued asset payment volume | Hubble amount fields for USDC and anchor assets |
+| Contract TVL | Live BigQuery state adapter snapshots |
+| Payment-flow graphs | Top-N counterparty edges across payment operations |
 
 ---
 
