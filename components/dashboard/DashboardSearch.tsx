@@ -29,11 +29,16 @@ function resultTypeBadge(type: SearchResult["type"]): string {
 }
 
 export function DashboardSearch() {
-  const { data, isLoading, selectSearchResult } = useDashboard();
+  const {
+    data,
+    isLoading,
+    searchQuery,
+    setSearchQuery,
+    selectSearchResult,
+  } = useDashboard();
   const inputId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -43,8 +48,8 @@ export function DashboardSearch() {
   );
 
   const results = useMemo(
-    () => searchIndex(index, query),
-    [index, query],
+    () => searchIndex(index, searchQuery),
+    [index, searchQuery],
   );
 
   const flatResults = useMemo(
@@ -82,11 +87,11 @@ export function DashboardSearch() {
     active?.scrollIntoView({ block: "nearest" });
   }, [safeActiveIndex, open, flatResults.length]);
 
-  const showPanel = open && query.trim().length > 0;
+  const showPanel = open && searchQuery.trim().length > 0;
 
   const handleSelect = (result: SearchResult) => {
     selectSearchResult(result);
-    setQuery("");
+    setSearchQuery("");
     setOpen(false);
     setActiveIndex(0);
   };
@@ -170,10 +175,10 @@ export function DashboardSearch() {
           autoComplete="off"
           spellCheck={false}
           placeholder="Search address, contract, asset, or protocol…"
-          value={query}
+          value={searchQuery}
           disabled={isLoading && !data}
           onChange={(event) => {
-            setQuery(event.target.value);
+            setSearchQuery(event.target.value);
             setOpen(true);
             setActiveIndex(0);
           }}
@@ -187,13 +192,13 @@ export function DashboardSearch() {
         />
         {isLoading && !data ? (
           <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-400" />
-        ) : query ? (
+        ) : searchQuery ? (
           <button
             type="button"
             aria-label="Clear search"
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 hover:bg-white/10 hover:text-white"
             onClick={() => {
-              setQuery("");
+              setSearchQuery("");
               setOpen(false);
               setActiveIndex(0);
             }}

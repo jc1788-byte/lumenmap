@@ -79,6 +79,7 @@ export type DashboardUrlState = {
   pathSegments: string[];
   comparePeriod?: Period;
   network?: "mainnet" | "testnet";
+  searchQuery?: string;
 };
 
 export function parseDashboardUrlSearch(
@@ -90,6 +91,8 @@ export function parseDashboardUrlSearch(
   const next: Partial<DashboardUrlState> = {
     pathSegments: decodeDrillPathParam(params.get("path")),
   };
+  const searchQuery = params.get("q");
+  if (searchQuery) next.searchQuery = searchQuery;
 
   const period = params.get("period");
   if (isValidPeriod(period)) next.period = period;
@@ -117,6 +120,7 @@ export function writeDashboardUrlSearch(input: {
   currentSearch?: string;
   comparePeriod?: Period | null;
   network?: "mainnet" | "testnet";
+  searchQuery?: string;
 }): string {
   const params = new URLSearchParams(
     (input.currentSearch ?? "").replace(/^\?/, ""),
@@ -131,6 +135,8 @@ export function writeDashboardUrlSearch(input: {
   }
   if (input.comparePeriod) params.set("compare", input.comparePeriod);
   else params.delete("compare");
+  if (input.searchQuery) params.set("q", input.searchQuery);
+  else params.delete("q");
 
   const encodedPath = encodeDrillPath(input.path);
   if (encodedPath) params.set("path", encodedPath);

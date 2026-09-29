@@ -52,6 +52,8 @@ interface DashboardContextValue {
   setActiveLevelPath: (path: TreemapNode[]) => void;
   /** Active search focus used to open treemap context. */
   focusRequest: SearchResult | null;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
   selectSearchResult: (result: SearchResult) => void;
 }
 
@@ -146,6 +148,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [activeLevelPath, setActiveLevelPath] = useState<TreemapNode[]>([]);
   const [focusRequest, setFocusRequest] = useState<SearchResult | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const pendingPathSegments = useRef<string[] | null>(null);
   const [urlReady, setUrlReady] = useState(false);
 
@@ -162,6 +165,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       if (parsed.metric) setMetricState(parsed.metric);
       if (parsed.view) setTreemapViewState(parsed.view);
       if (parsed.network) setNetworkState(parsed.network);
+      setSearchQuery(parsed.searchQuery ?? "");
       setUrlReady(true);
     });
   }, []);
@@ -204,13 +208,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const query = useQuery({
     queryKey: ["activity", period, network],
     queryFn: () => fetchActivity(period, network),
+    enabled: urlReady,
     staleTime: 60_000,
   });
 
   const comparisonQuery = useQuery({
     queryKey: ["activity", comparePeriod, network],
     queryFn: () => fetchActivity(comparePeriod as Period, network),
-    enabled: comparePeriod !== null,
+    enabled: urlReady && comparePeriod !== null,
     staleTime: 60_000,
   });
 
@@ -231,6 +236,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       metric,
       view: treemapView,
       path: activeLevelPath,
+      searchQuery,
       currentSearch: window.location.search,
       comparePeriod,
       network,
@@ -242,7 +248,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         `${window.location.pathname}${next}`,
       );
     }
-  }, [urlReady, period, metric, treemapView, activeLevelPath, comparePeriod, network]);
+  }, [urlReady, period, metric, treemapView, activeLevelPath, comparePeriod, network, searchQuery]);
 
   const selectSearchResult = useCallback(
     (result: SearchResult) => {
@@ -280,6 +286,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       activeLevelPath,
       setActiveLevelPath,
       focusRequest,
+      searchQuery,
+      setSearchQuery,
       selectSearchResult,
     }),
     [
@@ -305,6 +313,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       selectedNode,
       activeLevelPath,
       focusRequest,
+      searchQuery,
       selectSearchResult,
     ],
   );

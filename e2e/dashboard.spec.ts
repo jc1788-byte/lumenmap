@@ -183,6 +183,30 @@ test.describe("LumenMap dashboard user journey", () => {
     expect(new URL(page.url()).pathname).toBe("/");
   });
 
+  test("period, treemap metric, and search context survive reload", async ({
+    page,
+  }) => {
+    await selectPeriod(page, "7 Days", "7d");
+    await page.getByRole("button", { name: "XLM Volume" }).click();
+    await page.getByRole("combobox").fill("Soroban");
+
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("q"))
+      .toBe("Soroban");
+    await page.reload();
+
+    await expect(page.getByRole("radio", { name: "7 Days" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await expect(page.getByRole("combobox")).toHaveValue("Soroban");
+    await expect(page.getByText(/Tile size is proportional to XLM payment volume/)).toBeVisible();
+    const params = new URL(page.url()).searchParams;
+    expect(params.get("period")).toBe("7d");
+    expect(params.get("metric")).toBe("xlm_volume");
+    expect(params.get("q")).toBe("Soroban");
+  });
+
   test("switching hierarchy views changes the visible treemap data", async ({
     page,
   }) => {

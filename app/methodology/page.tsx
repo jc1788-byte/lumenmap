@@ -146,6 +146,8 @@ export default function MethodologyPage() {
             not a measure of network health. The graph uses the same period,
             inclusive time predicate, partial-period, and Hubble freshness
             conventions as every other LumenMap metric.
+            The dashboard period and account search context are shared with
+            Flow; the treemap metric does not change the graph.
           </p>
 
           <div id={FLOW_METHODOLOGY_ANCHORS.nodes} className="scroll-mt-24 space-y-2">
