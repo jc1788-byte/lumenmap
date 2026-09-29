@@ -21,6 +21,7 @@ import { DashboardSearch } from "@/components/dashboard/DashboardSearch";
 import { ComparisonPanel } from "@/components/dashboard/ComparisonPanel";
 import { SavedViewsControls } from "@/components/dashboard/SavedViewsControls";
 import { NetworkSelector } from "@/components/dashboard/NetworkSelector";
+import { FlowView } from "@/components/dashboard/FlowView";
 import {
   isMetricSupportedOnNetwork,
   networkLabel,
@@ -121,6 +122,8 @@ function DashboardContent() {
       <ActivityHeatmap />
       <TimeSeriesChart />
       <HourOfWeekHeatmap />
+      
+      <FlowView />
     </div>
   );
 }

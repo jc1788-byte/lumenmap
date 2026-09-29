@@ -53,6 +53,9 @@ interface DashboardContextValue {
   /** Active search focus used to open treemap context. */
   focusRequest: SearchResult | null;
   selectSearchResult: (result: SearchResult) => void;
+  /** Flow view state */
+  flowView: "graph" | "table";
+  setFlowView: (view: "graph" | "table") => void;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -146,6 +149,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [activeLevelPath, setActiveLevelPath] = useState<TreemapNode[]>([]);
   const [focusRequest, setFocusRequest] = useState<SearchResult | null>(null);
+  const [flowView, setFlowViewState] = useState<"graph" | "table">("graph");
   const pendingPathSegments = useRef<string[] | null>(null);
   const [urlReady, setUrlReady] = useState(false);
 
@@ -281,6 +285,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       setActiveLevelPath,
       focusRequest,
       selectSearchResult,
+      flowView,
+      setFlowView: setFlowViewState,
     }),
     [
       period,
@@ -306,6 +312,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       activeLevelPath,
       focusRequest,
       selectSearchResult,
+      flowView,
     ],
   );
 
