@@ -84,7 +84,7 @@ function SortableHeader({
       <button
         type="button"
         onClick={onSort}
-        className="flex w-full items-center gap-1 px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-zinc-400 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-stellar-light"
+        className="flex min-h-[44px] w-full items-center gap-1 px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-zinc-400 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-stellar-light"
       >
         {label}
         <SortIcon state={state} />
@@ -147,6 +147,158 @@ export interface FlowDataTableProps {
 
 const HEADER_CELL =
   "px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-zinc-400";
+
+/**
+ * Mobile-first card list used below the `sm` breakpoint. Tables with five
+ * columns cannot fit 320–390px viewports without forcing page-level horizontal
+ * scroll, so we render the same data as stacked cards instead.
+ */
+function EdgeCardList({
+  rows,
+  selectedId,
+  onSelect,
+}: {
+  rows: readonly {
+    edge: FlowTableEdge;
+    sourceLabel: string;
+    destinationLabel: string;
+    asset: string;
+    amount: number;
+  }[];
+  selectedId: string | null;
+  onSelect?: (id: string) => void;
+}) {
+  return (
+    <ul className="divide-y divide-white/5">
+      {rows.map(({ edge, sourceLabel, destinationLabel, asset, amount }) => {
+        const selected = selectedId === edge.id;
+        const interactive = Boolean(onSelect);
+        return (
+          <li key={edge.id}>
+            <button
+              type="button"
+              data-row-id={edge.id}
+              aria-selected={interactive ? selected : undefined}
+              onClick={interactive ? () => onSelect?.(edge.id) : undefined}
+              disabled={!interactive}
+              className={cn(
+                "flex w-full flex-col gap-2 px-3 py-3 text-left",
+                interactive &&
+                  "cursor-pointer hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-stellar-light",
+                selected && "bg-white/10",
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-sm text-zinc-200" title={edge.source}>
+                  {sourceLabel}
+                </span>
+                <span className="shrink-0 text-xs text-zinc-500" aria-hidden="true">
+                  →
+                </span>
+                <span
+                  className="truncate text-sm text-zinc-200"
+                  title={edge.destination}
+                >
+                  {destinationLabel}
+                </span>
+              </div>
+              <dl className="grid grid-cols-3 gap-2 text-xs">
+                <div className="min-w-0">
+                  <dt className="text-zinc-500">Asset</dt>
+                  <dd className="truncate text-zinc-400">{asset}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-zinc-500">Amount</dt>
+                  <dd className="truncate font-mono text-zinc-200">
+                    {formatExactNumber(amount)}
+                  </dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-zinc-500">Ops</dt>
+                  <dd className="truncate font-mono text-zinc-300">
+                    {formatExactNumber(edge.operationCount)}
+                  </dd>
+                </div>
+              </dl>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function NodeCardList({
+  rows,
+  selectedId,
+  onSelect,
+  resolveLabel,
+}: {
+  rows: readonly {
+    node: FlowTableNode;
+    category: string;
+    inflow: number;
+    outflow: number;
+  }[];
+  selectedId: string | null;
+  onSelect?: (id: string) => void;
+  resolveLabel: (id: string) => string;
+}) {
+  return (
+    <ul className="divide-y divide-white/5">
+      {rows.map(({ node, category, inflow, outflow }) => {
+        const selected = selectedId === node.id;
+        const interactive = Boolean(onSelect);
+        return (
+          <li key={node.id}>
+            <button
+              type="button"
+              data-row-id={node.id}
+              aria-selected={interactive ? selected : undefined}
+              onClick={interactive ? () => onSelect?.(node.id) : undefined}
+              disabled={!interactive}
+              className={cn(
+                "flex w-full flex-col gap-2 px-3 py-3 text-left",
+                interactive &&
+                  "cursor-pointer hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-stellar-light",
+                selected && "bg-white/10",
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-sm text-zinc-200">
+                  {resolveLabel(node.id)}
+                </span>
+                <span className="shrink-0 text-xs text-zinc-400">
+                  {category || "—"}
+                </span>
+              </div>
+              <dl className="grid grid-cols-3 gap-2 text-xs">
+                <div className="min-w-0">
+                  <dt className="text-zinc-500">In</dt>
+                  <dd className="truncate font-mono text-zinc-300">
+                    {formatExactNumber(inflow)}
+                  </dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-zinc-500">Out</dt>
+                  <dd className="truncate font-mono text-zinc-300">
+                    {formatExactNumber(outflow)}
+                  </dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-zinc-500">Id</dt>
+                  <dd className="truncate font-mono text-zinc-500">
+                    {truncateAddress(node.id)}
+                  </dd>
+                </div>
+              </dl>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 export function FlowDataTable({
   nodes,
@@ -226,8 +378,21 @@ export function FlowDataTable({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="overflow-x-auto rounded-xl border border-white/5 bg-black/20">
+    <div className="min-w-0 space-y-4">
+      {/* Mobile: stacked cards, no horizontal overflow. */}
+      <div className="overflow-hidden rounded-xl border border-white/5 bg-black/20 sm:hidden">
+        <p className="px-3 py-2 text-left text-xs text-zinc-500">
+          {caption} ({formatExactNumber(edges.length)} edges)
+        </p>
+        <EdgeCardList
+          rows={edgeRows}
+          selectedId={selectedId}
+          onSelect={onSelect}
+        />
+      </div>
+
+      {/* Desktop: sortable table. */}
+      <div className="hidden overflow-x-auto rounded-xl border border-white/5 bg-black/20 sm:block">
         <table className="w-full min-w-[36rem] border-collapse text-sm">
           <caption className="px-3 py-2 text-left text-xs text-zinc-500">
             {caption} ({formatExactNumber(edges.length)} edges)
@@ -261,38 +426,52 @@ export function FlowDataTable({
       </div>
 
       {showNodes && nodes.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-white/5 bg-black/20">
-          <table className="w-full min-w-[30rem] border-collapse text-sm">
-            <caption className="px-3 py-2 text-left text-xs text-zinc-500">
+        <>
+          <div className="overflow-hidden rounded-xl border border-white/5 bg-black/20 sm:hidden">
+            <p className="px-3 py-2 text-left text-xs text-zinc-500">
               Flow graph nodes ({formatExactNumber(nodes.length)} accounts)
-            </caption>
-            <thead>
-              <tr className="border-b border-white/10">
-                <SortableHeader label="Account" state={nodeSort.ariaSort("label")} onSort={() => nodeSort.onSort("label")} />
-                <SortableHeader label="Category" state={nodeSort.ariaSort("category")} onSort={() => nodeSort.onSort("category")} />
-                <SortableHeader label="Incoming ops" state={nodeSort.ariaSort("inflow")} onSort={() => nodeSort.onSort("inflow")} />
-                <SortableHeader label="Outgoing ops" state={nodeSort.ariaSort("outflow")} onSort={() => nodeSort.onSort("outflow")} />
-                <th scope="col" className={HEADER_CELL}>Account id</th>
-              </tr>
-            </thead>
-            <tbody>
-              {nodeRows.map(({ node, category, inflow, outflow }) => (
-                <SelectableRow
-                  key={node.id}
-                  id={node.id}
-                  selected={selectedId === node.id}
-                  onSelect={onSelect}
-                >
-                  <td className="px-3 py-2 text-zinc-200">{resolveLabel(node.id)}</td>
-                  <td className="px-3 py-2 text-zinc-400">{category || "—"}</td>
-                  <td className="px-3 py-2 font-mono text-zinc-300">{formatExactNumber(inflow)}</td>
-                  <td className="px-3 py-2 font-mono text-zinc-300">{formatExactNumber(outflow)}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-zinc-500">{truncateAddress(node.id)}</td>
-                </SelectableRow>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            </p>
+            <NodeCardList
+              rows={nodeRows}
+              selectedId={selectedId}
+              onSelect={onSelect}
+              resolveLabel={resolveLabel}
+            />
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-xl border border-white/5 bg-black/20 sm:block">
+            <table className="w-full min-w-[30rem] border-collapse text-sm">
+              <caption className="px-3 py-2 text-left text-xs text-zinc-500">
+                Flow graph nodes ({formatExactNumber(nodes.length)} accounts)
+              </caption>
+              <thead>
+                <tr className="border-b border-white/10">
+                  <SortableHeader label="Account" state={nodeSort.ariaSort("label")} onSort={() => nodeSort.onSort("label")} />
+                  <SortableHeader label="Category" state={nodeSort.ariaSort("category")} onSort={() => nodeSort.onSort("category")} />
+                  <SortableHeader label="Incoming ops" state={nodeSort.ariaSort("inflow")} onSort={() => nodeSort.onSort("inflow")} />
+                  <SortableHeader label="Outgoing ops" state={nodeSort.ariaSort("outflow")} onSort={() => nodeSort.onSort("outflow")} />
+                  <th scope="col" className={HEADER_CELL}>Account id</th>
+                </tr>
+              </thead>
+              <tbody>
+                {nodeRows.map(({ node, category, inflow, outflow }) => (
+                  <SelectableRow
+                    key={node.id}
+                    id={node.id}
+                    selected={selectedId === node.id}
+                    onSelect={onSelect}
+                  >
+                    <td className="px-3 py-2 text-zinc-200">{resolveLabel(node.id)}</td>
+                    <td className="px-3 py-2 text-zinc-400">{category || "—"}</td>
+                    <td className="px-3 py-2 font-mono text-zinc-300">{formatExactNumber(inflow)}</td>
+                    <td className="px-3 py-2 font-mono text-zinc-300">{formatExactNumber(outflow)}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-zinc-500">{truncateAddress(node.id)}</td>
+                  </SelectableRow>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
@@ -321,7 +500,7 @@ export function FlowViewToggle({
           aria-pressed={view === option.value}
           onClick={() => onChange(option.value)}
           className={cn(
-            "rounded-md px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-stellar-light",
+            "min-h-[44px] rounded-md px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-stellar-light",
             view === option.value && "bg-white/10 text-white",
           )}
         >

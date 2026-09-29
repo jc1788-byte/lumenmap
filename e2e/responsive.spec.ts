@@ -92,7 +92,7 @@ const MOCK_TREEMAP_NODE = (name: string, children?: unknown[]) => ({
 });
 
 function mockApiResponse(page: Page) {
-  return page.route("**/api/activity*", async (route) => {
+  return page.route("**/api/activity", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -196,7 +196,7 @@ test.describe("responsive layout", () => {
       });
 
       test("error state: no horizontal scrollbar", async ({ page }) => {
-        await page.route("**/api/activity*", async (route) => {
+        await page.route("**/api/activity", async (route) => {
           await route.fulfill({
             status: 500,
             contentType: "application/json",
@@ -223,6 +223,28 @@ test.describe("responsive layout", () => {
         await expect(periodButtons.nth(2)).toBeVisible();
         await expect(periodButtons.nth(3)).toBeVisible();
       });
+
+      test("primary Flow controls meet 44px touch target minimum", async ({ page }) => {
+        await mockApiResponse(page);
+        await page.goto("/");
+
+        const controls = page.locator('button, [role="button"], a[href]');
+        const count = await controls.count();
+        const tooSmall: string[] = [];
+
+        for (let i = 0; i < count; i++) {
+          const control = controls.nth(i);
+          if (!(await control.isVisible())) continue;
+          const box = await control.boundingBox();
+          if (!box) continue;
+          if (box.width < 44 || box.height < 44) {
+            const text = (await control.innerText()).trim().slice(0, 20);
+            tooSmall.push(`${text} ${Math.round(box.width)}x${Math.round(box.height)}`);
+          }
+        }
+
+        expect(tooSmall, lazy() => `too small: ${tooSmall.join(", ")}`).toHaveLength(0);
+      });
     });
   }
-});
+})

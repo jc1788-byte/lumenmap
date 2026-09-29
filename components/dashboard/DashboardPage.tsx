@@ -39,8 +39,8 @@ function DashboardContent() {
             <Image
               src="/logo.png"
               alt="LumenMap"
-              width={44}
-              height={44}
+              width=44
+              height=44
               className="shrink-0"
               priority
             />
@@ -82,7 +82,7 @@ function DashboardContent() {
           <p>{unsupportedMetricMessage(metric)}</p>
           <button
             type="button"
-            className="mt-2 text-sm font-medium text-amber-50 underline"
+            className="mt-2 inline-flex min-h-[44px] items-center text-sm font-medium text-amber-50 underline"
             onClick={() => setMetric("ops")}
           >
             Switch to operations
@@ -101,11 +101,11 @@ function DashboardContent() {
       <CategoryShareChart />
 
       <div
-        className={`grid min-w-0 grid-cols-1 gap-6 transition-all duration-300 ${
+        className={`grid min-w-0 grid-cols-1 gap-6 transition-all duration-300 ${''}
           selectedNode
             ? "xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]"
             : "xl:grid-cols-1"
-        }`}
+        }`.concat("")}
       >
         <div className="min-w-0">
           <NetworkTreemap />
