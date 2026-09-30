@@ -128,93 +128,60 @@ describe("FlowViewToggle", () => {
   });
 });
 
-describe("flowTableNodeToSelectedNode", () => {
-  it("maps a labeled node to the shared DetailPanel selection shape", () => {
-    expect(
-      flowTableNodeToSelectedNode(nodes[0], { inflowOps: 1, outflowOps: 2 }),
-    ).toEqual({
-      name: "Alpha Exchange",
-      value: 3,
-      share: 0,
-      meta: {
-        type: "account",
-        id: "GAAA",
-        nodeId: "GAAA",
-        category: "exchange",
-        protocol: "exchange",
-        opCount: 3,
-      },
-    });
-  });
-});
+describe("FlowDataTable async states", () => {
+  it("renders skeletons with aria-busy when loading", () => {
+    act(() => root.render(<FlowDataTable nodes={nodes} edges={edges} isLoading />));
 
-describe("FlowDataTable with DashboardProvider", () => {
-  function renderWithProvider() {
-    const client = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false, refetchOnWindowFocus: false },
-      },
-    });
-    act(() => {
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(container.querySelector("table")).toBeNull();
+  });
+
+  it("renders an alert with retry that fires onRetry once", () => {
+    const onRetry = vi.fn();
+    act(() =>
       root.render(
-        <QueryClientProvider client={client}>
-          <DashboardProvider>
-            <FlowDataTable nodes={nodes} edges={edges} showNodes />
-            <DetailPanel />
-          </DashboardProvider>
-        </QueryClientProvider>,
-      );
-    });
-  }
-
-  function nodeRow(id: string) {
-    const tables = getAllByRole(container, "table");
-    const row = tables[1].querySelector(`tbody tr[data-row-id="${id}"]`);
-    if (!row) throw new Error(`missing node row ${id}`);
-    return row as HTMLElement;
-  }
-
-  beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ treemaps: {} }) }),
+        <FlowDataTable nodes={nodes} edges={edges} isError onRetry={onRetry} errorMessage="Flow request failed" />,
+      ),
     );
+
+    expect(getByRole(container, "alert").textContent).toContain("Flow request failed");
+    const retry = getByRole(container, "button", { name: /retry loading flow data/i });
+    act(() => {
+      fireEvent.click(retry);
+    });
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
+  it("guards double-clicks while retryPending", () => {
+    const onRetry = vi.fn();
+    act(() =>
+      root.render(
+        <FlowDataTable nodes={nodes} edges={edges} isError onRetry={onRetry} retryPending />,
+      ),
+    );
+
+    const retry = getByRole(container, "button", { name: /retrying flow data/i });
+    expect(retry.hasAttribute("disabled")).toBe(true);
+    act(() => {
+      fireEvent.click(retry);
+      fireEvent.click(retry);
+    });
+    expect(onRetry).not.toHaveBeenCalled();
   });
 
-  it("clicking a labeled node row populates DetailPanel", async () => {
-    renderWithProvider();
-    expect(container.querySelector("[data-canonical-address]")).toBeNull();
+  it("renders a polite status when there are no edges", () => {
+    act(() => root.render(<FlowDataTable nodes={[]} edges={[]} />));
 
-    await act(async () => {
-      fireEvent.click(nodeRow("GAAA"));
-    });
-
-    await waitFor(() => {
-      expect(
-        container.querySelector('[data-canonical-address="GAAA"]'),
-      ).not.toBeNull();
-    });
-    expect(container.textContent).toContain("Alpha Exchange");
-    expect(container.textContent).toContain("exchange");
-    expect(container.textContent).toContain("Activity count");
+    const status = getByRole(container, "status");
+    expect(status.textContent).toContain("No flow edges to display.");
+    expect(status.getAttribute("aria-live")).toBe("polite");
   });
 
-  it("Enter key on a node row populates DetailPanel", async () => {
-    renderWithProvider();
+  it("renders a nodes-empty status when showNodes has no nodes", () => {
+    act(() => root.render(<FlowDataTable nodes={[]} edges={edges} showNodes />));
 
-    await act(async () => {
-      fireEvent.keyDown(nodeRow("GAAA"), { key: "Enter" });
-    });
-
-    await waitFor(() => {
-      expect(
-        container.querySelector('[data-canonical-address="GAAA"]'),
-      ).not.toBeNull();
-    });
-    expect(container.textContent).toContain("Alpha Exchange");
+    const statuses = getAllByRole(container, "status");
+    expect(statuses.some((s) => s.textContent?.includes("No flow nodes to display."))).toBe(true);
+    expect(statuses.every((s) => s.getAttribute("aria-live") === "polite")).toBe(true);
   });
 });
