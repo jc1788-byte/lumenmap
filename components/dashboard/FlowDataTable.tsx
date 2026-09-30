@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, RefreshCw } from "lucide-react";
 import { cn, formatExactNumber, truncateAddress } from "@/lib/utils";
-import { useDashboard } from "@/components/dashboard/DashboardProvider";
-import type { SelectedNode } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * Minimal structural shapes of the Flow graph model. They are intentionally a
@@ -192,8 +192,16 @@ export interface FlowDataTableProps {
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   caption?: string;
-  period?: Period;
-  hideExport?: boolean;
+  /** Renders table-shaped loading skeletons instead of data. */
+  isLoading?: boolean;
+  /** Renders the error panel with retry instead of data. */
+  isError?: boolean;
+  /** Error copy shown in the error panel. */
+  errorMessage?: string;
+  /** Refetch trigger invoked by the retry button. */
+  onRetry?: () => void | Promise<void>;
+  /** Disables the retry button while a refetch is in flight. */
+  retryPending?: boolean;
 }
 
 const HEADER_CELL =
@@ -358,12 +366,28 @@ export function FlowDataTable({
   selectedId = null,
   onSelect,
   caption = "Flow graph edges",
-  period,
-  hideExport = false,
+  isLoading = false,
+  isError = false,
+  errorMessage = "Unable to load flow data.",
+  onRetry,
+  retryPending = false,
 }: FlowDataTableProps) {
   const edgeSort = useSort<EdgeSortKey>("amount");
   const nodeSort = useSort<NodeSortKey>("outflow");
-  const dashboard = useOptionalDashboard();
+  const [isRetrying, setIsRetrying] = useState(false);
+  const retryBusy = isRetrying || retryPending;
+
+  const handleRetry = async () => {
+    if (retryBusy) {
+      return;
+    }
+    setIsRetrying(true);
+    try {
+      await onRetry?.();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const totalsById = useMemo(() => {
     const totals = new Map<string, { inflow: number; outflow: number }>();
@@ -457,17 +481,68 @@ export function FlowDataTable({
     });
   }, [nodes, totalsById, nodeSort]);
 
-  if (edges.length === 0) {
+  if (isLoading) {
     return (
-      <div className="space-y-3">
-        {!hideExport && (
-          <div className="flex items-center justify-end px-1">
-            <FlowExportButton edges={edges} period={period} />
+      <div aria-busy="true" className="space-y-4">
+        <div className="overflow-x-auto rounded-xl border border-white/5 bg-black/20 p-3">
+          <Skeleton className="mb-2 h-4 w-40" />
+          <div className="space-y-2">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
+          </div>
+        </div>
+        {showNodes && (
+          <div className="overflow-x-auto rounded-xl border border-white/5 bg-black/20 p-3">
+            <Skeleton className="mb-2 h-4 w-40" />
+            <div className="space-y-2">
+              <Skeleton className="h-9 w-full" />
+              <Skeleton className="h-9 w-full" />
+            </div>
           </div>
         )}
-        <div className="rounded-xl border border-white/5 bg-black/20 p-6 text-center text-sm text-zinc-500">
-          No flow edges to display.
-        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col gap-4 rounded-xl border border-red-500/20 bg-red-500/5 p-6 text-sm text-red-200">
+        <p role="alert">{errorMessage}</p>
+        {onRetry && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void handleRetry();
+            }}
+            disabled={retryBusy}
+            aria-busy={retryBusy}
+            aria-label={
+              retryBusy ? "Retrying flow data" : "Retry loading flow data"
+            }
+            className="gap-2 self-start border-red-500/30 text-red-100 hover:bg-red-500/10"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${retryBusy ? "animate-spin" : ""}`}
+              aria-hidden="true"
+            />
+            {retryBusy ? "Retrying…" : "Retry"}
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  if (edges.length === 0) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="rounded-xl border border-white/5 bg-black/20 p-6 text-center text-sm text-zinc-500"
+      >
+        No flow edges to display.
       </div>
     );
   }
@@ -550,6 +625,15 @@ export function FlowDataTable({
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {showNodes && nodes.length === 0 && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-xl border border-white/5 bg-black/20 p-6 text-center text-sm text-zinc-500"
+        >
+          No flow nodes to display.
         </div>
       )}
     </div>
