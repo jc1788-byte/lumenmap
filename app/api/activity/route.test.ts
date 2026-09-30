@@ -403,3 +403,112 @@ describe("GET /api/v1/activity/raw", () => {
     assert.equal("treemaps" in body, false);
   });
 });
+
+describe("activity cache headers", () => {
+  test("in-progress periods get a shorter shared TTL than complete periods", async () => {
+    const inProgress = await handleActivityRequest(
+      new Request("http://localhost/api/v1/activity?period=1d"),
+      async (period) => ({
+        ...mockActivityDataset(period),
+        isPeriodComplete: false,
+      }),
+    );
+    const complete = await handleActivityRequest(
+      new Request("http://localhost/api/v1/activity?period=30d"),
+      async (period) => ({
+        ...mockActivityDataset(period),
+        isPeriodComplete: true,
+      }),
+    );
+
+    assert.equal(inProgress.status, 200);
+    assert.equal(complete.status, 200);
+    assert.equal(
+      inProgress.headers.get("cache-control"),
+      "public, max-age=60, s-maxage=60",
+    );
+    assert.equal(
+      complete.headers.get("cache-control"),
+      "public, max-age=900, s-maxage=900",
+    );
+  });
+
+  test("mirrors the shared TTL onto the CDN cache headers", async () => {
+    const response = await handleActivityRequest(
+      new Request("http://localhost/api/v1/activity?period=7d"),
+      async (period) => ({
+        ...mockActivityDataset(period),
+        isPeriodComplete: true,
+      }),
+    );
+
+    const cacheControl = response.headers.get("cache-control");
+    assert.equal(response.headers.get("cdn-cache-control"), cacheControl);
+    assert.equal(
+      response.headers.get("vercel-cdn-cache-control"),
+      cacheControl,
+    );
+  });
+
+  test("never caches error responses", async () => {
+    const invalidPeriod = await handleActivityRequest(
+      new Request("http://localhost/api/v1/activity?period=1y"),
+      async (period) => mockActivityDataset(period),
+    );
+
+    assert.equal(invalidPeriod.status, 400);
+    assert.equal(invalidPeriod.headers.get("cache-control"), "no-store");
+
+    const invalidNetwork = await handleActivityRequest(
+      new Request("http://localhost/api/v1/activity?period=1d&network=invalid"),
+      async (period) => mockActivityDataset(period),
+    );
+
+    assert.equal(invalidNetwork.status, 400);
+    assert.equal(invalidNetwork.headers.get("cache-control"), "no-store");
+
+    const originalConsoleError = console.error;
+    console.error = () => {};
+    try {
+      const failed = await handleActivityRequest(
+        new Request("http://localhost/api/v1/activity?period=30d"),
+        async () => {
+          throw new Error("BigQuery query failed");
+        },
+      );
+
+      assert.equal(failed.status, 500);
+      assert.equal(failed.headers.get("cache-control"), "no-store");
+    } finally {
+      console.error = originalConsoleError;
+    }
+  });
+
+  test("raw research endpoint applies shared cache headers and no-store on errors", async () => {
+    const success = await handleRawActivityRequest(
+      new Request("http://localhost/api/v1/activity/raw?period=1d"),
+      async (period) => ({
+        ...representativeActivityDataset(),
+        period,
+        isPeriodComplete: false,
+      }),
+    );
+    assert.equal(success.status, 200);
+    assert.equal(
+      success.headers.get("cache-control"),
+      "public, max-age=60, s-maxage=60",
+    );
+    assert.equal(
+      success.headers.get("cdn-cache-control"),
+      "public, max-age=60, s-maxage=60",
+    );
+
+    const invalid = await handleRawActivityRequest(
+      new Request("http://localhost/api/v1/activity/raw?period=invalid"),
+      async (period) => mockActivityDataset(period),
+    );
+    assert.equal(invalid.status, 400);
+    assert.equal(invalid.headers.get("cache-control"), "no-store");
+  });
+});
+

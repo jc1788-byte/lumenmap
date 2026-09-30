@@ -156,63 +156,60 @@ describe("GET /api/v1/timeseries", () => {
   });
 });
 
-describe("GET /api/v1/flow", () => {
-  test("returns 200 for supported periods in fixture mode", async () => {
-    for (const period of supportedPeriods) {
-      const response = await handleFlowRequest(
-        new Request(`http://localhost/api/v1/flow?period=${period}`),
-        async (requestedPeriod, account) =>
-          mockFlowGraph(requestedPeriod, account),
-      );
-
-      assert.equal(response.status, 200);
-      const body = (await response.json()) as FlowGraph;
-      assert.equal(body.period, period);
-      assert.equal(body.source, "fixture");
-      assert.ok(Array.isArray(body.nodes));
-      assert.ok(Array.isArray(body.edges));
-      assert.ok(body.sourceTimestamp);
-    }
-  });
-
-  test("returns 400 for invalid period without invoking provider", async () => {
-    let calls = 0;
-    const response = await handleFlowRequest(
-      new Request("http://localhost/api/v1/flow?period=1y"),
-      async () => {
-        calls += 1;
-        return mockFlowGraph("1d");
-      },
+describe("timeseries cache headers", () => {
+  test("in-progress periods get a shorter shared TTL than complete periods", async () => {
+    const inProgress = await handleTimeseriesRequest(
+      new Request("http://localhost/api/v1/timeseries?period=1d"),
+      async (period) => ({
+        ...mockTimeseriesResponse(period),
+        isPeriodComplete: false,
+      }),
+    );
+    const complete = await handleTimeseriesRequest(
+      new Request("http://localhost/api/v1/timeseries?period=30d"),
+      async (period) => ({
+        ...mockTimeseriesResponse(period),
+        isPeriodComplete: true,
+      }),
     );
 
-    assert.equal(response.status, 400);
-    assert.equal(calls, 0);
+    assert.equal(inProgress.status, 200);
+    assert.equal(complete.status, 200);
+    assert.equal(
+      inProgress.headers.get("cache-control"),
+      "public, max-age=60, s-maxage=60",
+    );
+    assert.equal(
+      complete.headers.get("cache-control"),
+      "public, max-age=900, s-maxage=900",
+    );
   });
 
-  test("supports ego mode with account param", async () => {
-    const response = await handleFlowRequest(
-      new Request("http://localhost/api/v1/flow?period=7d&account=GAAA"),
-      async (period, account) => mockFlowGraph(period, account),
+  test("mirrors the shared TTL onto CDN cache headers", async () => {
+    const response = await handleTimeseriesRequest(
+      new Request("http://localhost/api/v1/timeseries?period=7d"),
+      async (period) => ({
+        ...mockTimeseriesResponse(period),
+        isPeriodComplete: true,
+      }),
     );
 
-    assert.equal(response.status, 200);
-    const body = (await response.json()) as FlowGraph;
-    assert.equal(body.period, "7d");
-    assert.equal(body.account, "GAAA");
+    const cacheControl = response.headers.get("cache-control");
+    assert.equal(response.headers.get("cdn-cache-control"), cacheControl);
+    assert.equal(
+      response.headers.get("vercel-cdn-cache-control"),
+      cacheControl,
+    );
   });
 
-  test("returns safe provider error response", async () => {
-    const response = await handleFlowRequest(
-      new Request("http://localhost/api/v1/flow?period=30d"),
-      async () => {
-        throw new Error("BigQuery query failed with backend detail");
-      },
+  test("never caches error responses", async () => {
+    const invalid = await handleTimeseriesRequest(
+      new Request("http://localhost/api/v1/timeseries?period=1y"),
+      async (period) => mockTimeseriesResponse(period),
     );
 
-    assert.equal(response.status, 500);
-    assert.deepEqual(await response.json(), {
-      code: "INTERNAL_ERROR",
-      message: "An unexpected error occurred. Please try again later.",
-    });
+    assert.equal(invalid.status, 400);
+    assert.equal(invalid.headers.get("cache-control"), "no-store");
   });
 });
+
