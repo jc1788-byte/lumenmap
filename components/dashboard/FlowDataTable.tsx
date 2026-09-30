@@ -2,7 +2,11 @@
 
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { cn, formatExactNumber, truncateAddress } from "@/lib/utils";
+import { cn, formatExactNumber, formatPercent, truncateAddress } from "@/lib/utils";
+import {
+  FLOW_METHODOLOGY_ANCHORS,
+  flowMethodologyHref,
+} from "@/lib/metrics/flow-methodology-anchors";
 
 /**
  * Minimal structural shapes of the Flow graph model. They are intentionally a
@@ -24,6 +28,75 @@ export interface FlowTableEdge {
   /** Aggregated amount in minor units (stroops, 7 decimals). */
   amount: string;
   operationCount: number;
+}
+
+/** Period totals the Flow API reports alongside a top-N edge sample. */
+export interface FlowCoverageTotals {
+  totalEdges: number;
+  totalOperations: number;
+  configuredLimit: number;
+}
+
+export interface FlowCoverage {
+  returnedEdges: number;
+  totalEdges: number;
+  returnedOperations: number;
+  totalOperations: number;
+  coveragePercent: number;
+  sampled: boolean;
+  configuredLimit: number;
+}
+
+/**
+ * Build top-N sampling coverage for returned Flow edges: returned vs total
+ * edges plus operations-weighted coverage percent (same zero-parent rule as
+ * the treemap `buildCoverage`). Returns undefined when there are no edges.
+ */
+export function buildFlowCoverage(
+  edges: readonly FlowTableEdge[],
+  totals: FlowCoverageTotals,
+): FlowCoverage | undefined {
+  if (edges.length === 0) {
+    return undefined;
+  }
+  const returnedOperations = edges.reduce(
+    (sum, edge) => sum + edge.operationCount,
+    0,
+  );
+  return {
+    returnedEdges: edges.length,
+    totalEdges: totals.totalEdges,
+    returnedOperations,
+    totalOperations: totals.totalOperations,
+    coveragePercent:
+      totals.totalOperations > 0
+        ? (returnedOperations / totals.totalOperations) * 100
+        : 0,
+    sampled: edges.length < totals.totalEdges,
+    configuredLimit: totals.configuredLimit,
+  };
+}
+
+/**
+ * Honesty badge for top-N sampled Flow graphs. Rendered whenever coverage
+ * is below 100% so absences read as "not in the sample", not "no activity".
+ */
+export function FlowCoverageBadge({ coverage }: { coverage: FlowCoverage }) {
+  return (
+    <p className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-amber-800/70 bg-amber-950/40 px-3 py-1.5 text-xs text-amber-100">
+      <span>
+        Sampled · top {formatExactNumber(coverage.configuredLimit)} of{" "}
+        {formatExactNumber(coverage.totalEdges)} edges ·{" "}
+        {formatPercent(coverage.coveragePercent)} of operations
+      </span>
+      <a
+        href={flowMethodologyHref(FLOW_METHODOLOGY_ANCHORS.sampling)}
+        className="font-medium underline hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"
+      >
+        Methodology
+      </a>
+    </p>
+  );
 }
 
 type SortDirection = "asc" | "desc";
@@ -143,6 +216,8 @@ export interface FlowDataTableProps {
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   caption?: string;
+  /** Top-N sampling coverage; badge renders only when coverage is below 100%. */
+  coverage?: FlowCoverage | null;
 }
 
 const HEADER_CELL =
@@ -155,6 +230,7 @@ export function FlowDataTable({
   selectedId = null,
   onSelect,
   caption = "Flow graph edges",
+  coverage = null,
 }: FlowDataTableProps) {
   const edgeSort = useSort<EdgeSortKey>("amount");
   const nodeSort = useSort<NodeSortKey>("outflow");
@@ -227,6 +303,10 @@ export function FlowDataTable({
 
   return (
     <div className="space-y-4">
+      {coverage &&
+      (coverage.sampled || coverage.coveragePercent < 100) ? (
+        <FlowCoverageBadge coverage={coverage} />
+      ) : null}
       <div className="overflow-x-auto rounded-xl border border-white/5 bg-black/20">
         <table className="w-full min-w-[36rem] border-collapse text-sm">
           <caption className="px-3 py-2 text-left text-xs text-zinc-500">

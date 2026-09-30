@@ -1,10 +1,11 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { fireEvent, getAllByRole, getByRole } from "@testing-library/dom";
+import { fireEvent, getAllByRole, getByRole, getByText } from "@testing-library/dom";
 import { vi } from "vitest";
 import {
   FlowDataTable,
   FlowViewToggle,
+  buildFlowCoverage,
   type FlowTableEdge,
   type FlowTableNode,
 } from "./FlowDataTable";
@@ -105,5 +106,73 @@ describe("FlowViewToggle", () => {
     expect(tableButton.getAttribute("aria-pressed")).toBe("false");
     act(() => fireEvent.click(tableButton));
     expect(onChange).toHaveBeenCalledWith("table");
+  });
+});
+
+describe("buildFlowCoverage", () => {
+  it("reports partial sampled coverage", () => {
+    expect(
+      buildFlowCoverage(edges, { totalEdges: 50, totalOperations: 40, configuredLimit: 3 }),
+    ).toEqual({
+      returnedEdges: 3,
+      totalEdges: 50,
+      returnedOperations: 10,
+      totalOperations: 40,
+      coveragePercent: 25,
+      sampled: true,
+      configuredLimit: 3,
+    });
+  });
+
+  it("reports complete coverage as unsampled 100 percent", () => {
+    expect(
+      buildFlowCoverage(edges, { totalEdges: 3, totalOperations: 10, configuredLimit: 3 }),
+    ).toMatchObject({ coveragePercent: 100, sampled: false });
+  });
+
+  it("yields zero percent without NaN for a zero-operation period", () => {
+    expect(
+      buildFlowCoverage(edges, { totalEdges: 3, totalOperations: 0, configuredLimit: 3 }),
+    ).toMatchObject({ coveragePercent: 0 });
+  });
+
+  it("returns undefined when no edges were returned", () => {
+    expect(
+      buildFlowCoverage([], { totalEdges: 50, totalOperations: 40, configuredLimit: 3 }),
+    ).toBeUndefined();
+  });
+});
+
+describe("FlowCoverageBadge", () => {
+  const sampledCoverage = buildFlowCoverage(edges, {
+    totalEdges: 50,
+    totalOperations: 40,
+    configuredLimit: 3,
+  })!;
+
+  it("renders badge text with a methodology link when coverage is below 100%", () => {
+    act(() => root.render(<FlowDataTable nodes={nodes} edges={edges} coverage={sampledCoverage} />));
+
+    expect(container.textContent).toContain("top 3 of 50 edges");
+    expect(container.textContent).toContain("25.0% of operations");
+    const link = getByText(container, "Methodology").closest("a");
+    expect(link?.getAttribute("href")).toBe("/methodology#flow-sampling");
+  });
+
+  it("hides the badge at full coverage", () => {
+    const full = buildFlowCoverage(edges, {
+      totalEdges: 3,
+      totalOperations: 10,
+      configuredLimit: 3,
+    })!;
+    act(() => root.render(<FlowDataTable nodes={nodes} edges={edges} coverage={full} />));
+
+    expect(container.textContent).not.toContain("of operations");
+  });
+
+  it("hides the badge when coverage is absent", () => {
+    act(() => root.render(<FlowDataTable nodes={nodes} edges={edges} />));
+
+    expect(container.textContent).not.toContain("Methodology");
   });
 });
