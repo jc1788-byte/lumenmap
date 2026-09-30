@@ -531,13 +531,29 @@ export function buildHeatmap(rawRows: HeatmapRawRow[]): ActivityHeatmap {
   return { buckets };
 }
 
+export class CredentialsMissingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CredentialsMissingError";
+    Object.setPrototypeOf(this, CredentialsMissingError.prototype);
+  }
+}
+
+export class UpstreamQueryFailedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UpstreamQueryFailedError";
+    Object.setPrototypeOf(this, UpstreamQueryFailedError.prototype);
+  }
+}
+
 export async function getActivityData(
   period: Period,
   correlationId: string = createCorrelationId(),
   network: DashboardNetworkId = "mainnet",
 ): Promise<ActivityDataset> {
   if (!hasBigQueryCredentials()) {
-    throw new Error(
+    throw new CredentialsMissingError(
       "BigQuery credentials are required. Set GOOGLE_APPLICATION_CREDENTIALS in .env.local",
     );
   }

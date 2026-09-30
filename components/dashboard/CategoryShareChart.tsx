@@ -23,14 +23,19 @@ import {
 } from "@/lib/charts/category-share";
 import type { CategoryShareResponse } from "@/lib/hubble/category-share";
 import { formatNumber, formatPercent } from "@/lib/utils";
+import { getErrorCopy } from "@/lib/error-copy";
 
 async function fetchCategoryShare(
   period: string,
 ): Promise<CategoryShareResponse> {
   const response = await fetch(`/api/category-share?period=${period}`);
   if (!response.ok) {
-    const body = (await response.json()) as { error?: string };
-    throw new Error(body.error ?? "Failed to load category share chart");
+    const body = (await response.json()) as { code?: string; error?: string };
+    const error = new Error(body.error ?? "Failed to load category share chart");
+    if (body.code) {
+      (error as any).code = body.code;
+    }
+    throw error;
   }
   return response.json() as Promise<CategoryShareResponse>;
 }
@@ -127,6 +132,9 @@ export function CategoryShareChart() {
     staleTime: 60_000,
   });
 
+  const errorCode = (query.error as any)?.code as string | undefined;
+  const errorCopy = errorCode ? getErrorCopy(errorCode as any) : null;
+
   const legendById = useMemo(() => {
     const map = new Map<CategoryId, { label: string; color: string }>();
     for (const item of query.data?.legend ?? []) {
@@ -170,14 +178,18 @@ export function CategoryShareChart() {
   }
 
   if (query.isError || !query.data) {
+    const message = errorCopy?.message ?? query.error?.message ?? "Unable to load category share chart.";
+    const hint = errorCopy?.hint;
+
     return (
       <Card>
         <CardHeader>
           <CardTitle>Category share over time</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex h-[240px] items-center justify-center rounded-xl border border-red-500/20 bg-red-500/5 p-6 text-center text-sm text-red-200">
-            {query.error?.message ?? "Unable to load category share chart."}
+          <div className="flex h-[240px] flex-col items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 p-6 text-center text-sm text-red-200">
+            <p>{message}</p>
+            {hint && <p className="text-xs text-zinc-400">{hint}</p>}
           </div>
         </CardContent>
       </Card>

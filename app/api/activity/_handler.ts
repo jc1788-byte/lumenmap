@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { metrics } from "@/lib/telemetry/metrics";
-import { getActivityData } from "@/lib/hubble/activity";
+import { getActivityData, CredentialsMissingError, UpstreamQueryFailedError } from "@/lib/hubble/activity";
 import { BigQueryLimitExceededError } from "@/lib/hubble/errors";
 import { resolveDataSource } from "@/lib/data-source";
 import { getFixtureActivityData } from "@/lib/fixtures/activity";
@@ -209,6 +209,40 @@ export async function handleActivityRequest(
       headers: { "Cache-Control": "public, max-age=900, s-maxage=900" },
     });
   } catch (error) {
+    if (error instanceof CredentialsMissingError) {
+      logError({
+        event: "activity.request.error",
+        correlationId,
+        period: parsed.period,
+        durationMs: endTimer(timer),
+        errorClass: "validation",
+        errorMessage: error.message,
+      });
+      const body: ApiErrorResponse = {
+        code: "CREDENTIALS_MISSING",
+        message: "BigQuery credentials are not configured.",
+      };
+      recordActivityResponseSize(parsed.period, "5xx", body);
+      return NextResponse.json(body, { status: 503 });
+    }
+
+    if (error instanceof UpstreamQueryFailedError) {
+      logError({
+        event: "activity.request.error",
+        correlationId,
+        period: parsed.period,
+        durationMs: endTimer(timer),
+        errorClass: "provider",
+        errorMessage: error.message,
+      });
+      const body: ApiErrorResponse = {
+        code: "UPSTREAM_QUERY_FAILED",
+        message: "Failed to query upstream data source. Please try again later.",
+      };
+      recordActivityResponseSize(parsed.period, "5xx", body);
+      return NextResponse.json(body, { status: 503 });
+    }
+
     if (error instanceof BigQueryLimitExceededError) {
       logError({
         event: "activity.request.error",

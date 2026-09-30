@@ -1,15 +1,32 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, HelpCircle, TrendingUp } from "lucide-react";
+import { AlertTriangle, HelpCircle, RefreshCw, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
 import { formatNumber } from "@/lib/utils";
+import { getErrorCopy } from "@/lib/error-copy";
 
 export function TimeSeriesChart() {
-  const { data, isLoading, isError, error } = useDashboard();
+  const { data, isLoading, isError, error, refetch, isFetching } = useDashboard();
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const errorCode = (error as any)?.code as string | undefined;
+  const errorCopy = errorCode ? getErrorCopy(errorCode as any) : null;
+  const retryPending = isRetrying || isFetching;
+
+  const handleRetry = async () => {
+    if (retryPending) return;
+    setIsRetrying(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const timeseries = data?.timeseries;
   const buckets = useMemo(() => timeseries?.buckets ?? [], [timeseries]);
@@ -114,23 +131,38 @@ export function TimeSeriesChart() {
   }
 
   if (isError || !data) {
+    const title = errorCopy?.title ?? "Time-Series Data Unavailable";
+    const message = errorCopy?.message ?? (error instanceof Error ? error.message : "Unable to load time-series activity charts from Hubble BigQuery.");
+    const hint = errorCopy?.hint;
+
     return (
       <Card className="border-red-950/40 bg-zinc-900/50 backdrop-blur-sm">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="flex items-center gap-2 text-base font-medium text-red-400">
             <AlertTriangle className="h-5 w-5 text-red-400" />
-            Time-Series Data Unavailable
+            {title}
           </CardTitle>
+          {errorCopy?.showRetry && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleRetry}
+              disabled={retryPending}
+              aria-busy={retryPending}
+              className="gap-2 border-red-500/30 text-red-100 hover:bg-red-500/10"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${retryPending ? "animate-spin" : ""}`}
+                aria-hidden="true"
+              />
+              {retryPending ? "Retrying…" : "Retry"}
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="py-6">
-          <p className="text-sm text-zinc-400">
-            {error instanceof Error
-              ? error.message
-              : "Unable to load time-series activity charts from Hubble BigQuery."}
-          </p>
-          <p className="mt-2 text-xs text-zinc-500">
-            Verify GOOGLE_APPLICATION_CREDENTIALS or BigQuery dataset access permissions.
-          </p>
+          <p className="text-sm text-zinc-400">{message}</p>
+          {hint && <p className="mt-2 text-xs text-zinc-500">{hint}</p>}
         </CardContent>
       </Card>
     );
