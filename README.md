@@ -30,61 +30,63 @@ Single-page dashboard. Data comes from [Hubble](https://developers.stellar.org/d
 
 - Hierarchical treemap with D3 squarified layout, drill-down, and breadcrumbs
 - Two views: **Operation Types** and **Accounts & Contracts**
-- Period filters: 1 day, 7 days, 30 days, calendar month
-- KPI cards: total operations, Soroban share, top category, active contracts (top-200 observed contracts)
-- Stacked category-share area chart (absolute and % modes, UTC buckets)
-- Entity labels for known wallets and contracts
+- Five treemap metrics: operation count, transaction count, XLM payment volume, verified Circle USDC volume, and adapter-backed Protocol TVL
+- Period filters: 1 day, 7 days, 30 days, calendar month, plus side-by-side period comparison
+- Shareable URL state: period, metric, view, drill-down path, network, and comparison period
+- KPI cards: total operations, Soroban share, top category, active contracts, active wallets, and active destinations (sparklines on operations and Soroban share)
+- Operations-vs-transactions time-series chart (UTC buckets, partial-bucket flags), stacked category-share area chart (absolute and % modes, UTC buckets), and daily / hour-of-week activity heatmaps
+- Dashboard search across loaded accounts, contracts, assets, protocols, and categories
+- Protocol activity ranking grouped by protocol, with entity labels for known wallets and contracts
+- Per-asset payment-volume panel (native units, issuers kept distinct)
 - Detail panel with share, activity count, protocol, and address
+- Fixture mode for credential-free local runs on deterministic sample data (not live mainnet data)
 - Responsive dark layout
 
 ### Coming next
 
-- Daily and hourly operation trend charts
-- Unique active wallet counts
-- dApp leaderboard grouped by protocol
-- Search by address, contract, or protocol
-- Payment volume in XLM and USDC
-- Public API
+- Live Protocol TVL adapters (Hubble/venue balance wiring plus the versioned price pipeline; today's snapshots are adapter-backed samples)
+- Cross-asset USD normalization under an explicit versioned methodology
+- Testnet parity for `usdc`, `xlm_volume`, and `protocol_tvl`
+- Broader protocol coverage for anchors, DeFi, and issuers
+- BigQuery cost tuning and production cache hardening
 
-Operation count is available today. Transaction count, active-account count, payment volume, and TVL are not. See the [metric methodology](docs/metric-methodology.md) before comparing metrics.
+Available today: [operation counts](docs/metric-methodology.md#operations), [transaction counts](docs/metric-methodology.md#transactions), [active source wallets and destinations](docs/metric-methodology.md#active-accounts), [active contracts](docs/metric-methodology.md#active-contracts), XLM and verified Circle USDC [payment volume](docs/metric-methodology.md#payment-volume) (including [USDC-scoped volume](docs/metric-methodology.md#usdc-payment-volume)), and adapter-backed [Protocol TVL](docs/metric-methodology.md#total-value-locked-tvl). See the [metric methodology](docs/metric-methodology.md) before comparing metrics: counts, asset-denominated volumes, and point-in-time TVL snapshots are deliberately different metrics.
+
+### What's shipped
+
+| Capability | Status | Reference |
+| --- | --- | --- |
+| Dashboard search | Shipped | [#207](https://github.com/lumenmap/lumenmap/pull/207) |
+| Operations/transactions time-series chart | Shipped | [#214](https://github.com/lumenmap/lumenmap/pull/214) |
+| Category-share chart | Shipped | [#222](https://github.com/lumenmap/lumenmap/pull/222) |
+| Protocol TVL | Shipped | [#229](https://github.com/lumenmap/lumenmap/pull/229) |
+| Fixture mode | Shipped | [#225](https://github.com/lumenmap/lumenmap/pull/225) |
+| URL state and period comparison | Shipped | [#265](https://github.com/lumenmap/lumenmap/pull/265) |
+
+Category-share work started under #216 on the same branch and shipped via #222. Shareable URL state was introduced in [#228](https://github.com/lumenmap/lumenmap/pull/228) and extended with the comparison period in #265. `period`, `metric`, `view`, drill-down `path`, `network`, and `compare` are the shareable/restorable query params (see `lib/dashboard-url-state.ts`).
 
 ---
 
 ## Roadmap
 
-### Phase 1: Activity charts
+Shipped dashboard capabilities are listed in [What's shipped](#whats-shipped) above, so the roadmap below tracks future work only.
 
-- Operation and transaction counts over time
-- Soroban vs classic share trends
-- Sparklines on KPI cards
-- `GET /api/v1/timeseries`
+### Next: live TVL backend
 
-### Phase 2: Wallets and dApps
+- Live protocol balance adapters (Hubble/venue wiring) with snapshot timestamps
+- Versioned price pipeline (blocked on the pricing work in #11)
+- Cross-asset USD normalization under an explicit versioned methodology
 
-- Unique active accounts per period
-- Top senders and receivers
-- Soroban contracts grouped and labeled by protocol
-- Search and filter
-- Links out to Stellar Expert and Stellarscan
+### Next: coverage and production
 
-### Phase 3: Treemap depth
-
-- Larger entity registry via `sync:directory` and manual entries
-- Payment volume next to operation counts
-- Soroban function breakdown per contract
-- Testnet support
-
-### Phase 4: Product polish
-
-- Pages: Overview, Activity, Charts
-- Headline summary: today’s tx count, active wallets, top dApp
-- Public `/api/v1/activity` and `/api/v1/timeseries` with documentation
-
-### Phase 5: Production
-
-- Redis or KV cache instead of in-memory server cache
-- BigQuery cost tuning
+- Testnet parity for `usdc`, `xlm_volume`, and `protocol_tvl`
 - Broader protocol coverage for anchors, DeFi, and issuers
+- Uncapped network-wide counts where treemap children stay top-N capped
+- BigQuery cost tuning and production cache hardening
+
+### In-progress backend work (#21, #28)
+
+The transaction-count query scope from #21 and the per-asset payment-volume scope from #28 already power the dashboard (transaction treemaps and time series; per-asset XLM/USDC volumes). What remains backend work: uncapped full-universe counts where treemap children stay top-N capped, hardened failure handling where queries degrade to empty results, and the live TVL adapter plus price pipeline above. Dashboard availability must not be read as "no backend work left" for these metrics.
 
 ---
 
@@ -126,18 +128,23 @@ explicit disabled message). Ops / transactions remain available.
 | Query | Output |
 | --- | --- |
 | Operations by type | Counts per `type_string` |
+| Transactions by type | Distinct transaction counts per `type_string` |
 | Top accounts | Most active wallets per operation type |
 | Top contracts | Most invoked Soroban contracts |
+| Active wallets | Distinct source accounts per period |
+| Active destinations | Distinct receiving accounts per period |
+| Active contracts (uncapped) | Distinct contract count, independent of the leaderboard cap |
+| Operations/transactions time series | Hourly/daily UTC buckets with partial-bucket flags |
+| Category-share series | UTC-bucketed category totals |
+| Per-asset payment volume | Amounts grouped by asset identity (XLM, verified Circle USDC) |
 | Soroban functions | Counts per function and per contract |
+| Protocol TVL snapshots | Adapter-backed USD snapshots with complete/partial/stale status |
 
 ### Queries planned
 
 | Metric | Source |
 | --- | --- |
-| Daily operation time series | Hubble hourly aggregates |
-| Unique active wallets | `enriched_history_operations` |
-| dApps by protocol | `entities.json` and contract grouping |
-| Payment volume | Hubble amount fields |
+| Live protocol TVL balances and prices | Hubble/venue adapters with a versioned price pipeline |
 
 ---
 
@@ -149,7 +156,7 @@ explicit disabled message). Ops / transactions remain available.
 | Language | TypeScript |
 | Styling | Tailwind CSS 4 |
 | Treemap | [d3-hierarchy](https://github.com/d3/d3-hierarchy) |
-| Charts | Recharts or Visx |
+| Charts | Recharts (category share) and custom SVG (time series) |
 | Data fetching | [TanStack Query](https://tanstack.com/query) |
 | Analytics | [Hubble](https://developers.stellar.org/docs/data/analytics/hubble) / BigQuery |
 
@@ -176,6 +183,16 @@ npm run dev
 ```
 
 Live mode still requires GCP credentials. Setting `LUMENMAP_DATA_SOURCE=fixture` in production (`NODE_ENV` or `VERCEL_ENV`) fails closed.
+
+What you can explore in fixture mode (deterministic rows from `lib/fixtures/raw-data.ts` and `lib/fixtures/timeseries.ts`, scaled per period):
+
+- Operation-count and transaction-count treemaps (both views) with drill-down, breadcrumbs, and KPIs including active wallets and destinations
+- Operations-vs-transactions time-series, the stacked category-share chart, and the daily activity heatmap on deterministic buckets
+- Dashboard search over the loaded fixture accounts, contracts, assets, and protocols
+- Shareable URL state and side-by-side period comparison
+- Protocol TVL tiles from fixture-backed adapter snapshots (complete / partial / stale statuses stay visible)
+
+What stays empty in fixture mode: XLM/USDC volume treemaps, the per-asset payment-volume panel, and the hour-of-week heatmap. The checked-in fixture dataset provides no volume or heatmap rows, so those surfaces show no data. Use live mode with GCP credentials for real payment-volume and heatmap data.
 
 ### Install and run
 
@@ -470,7 +487,7 @@ curl "http://localhost:3000/api/v1/timeseries?period=7d"
 
 | Endpoint | Description |
 | --- | --- |
-| `GET /api/v1/dapps` | Top contracts by protocol |
+| `GET /api/v1/dapps` | Not planned separately: top contracts by protocol already ship inside `GET /api/v1/activity` as the `protocols` summary |
 
 ---
 
