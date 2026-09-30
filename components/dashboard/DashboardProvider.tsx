@@ -53,6 +53,10 @@ interface DashboardContextValue {
   /** Active search focus used to open treemap context. */
   focusRequest: SearchResult | null;
   selectSearchResult: (result: SearchResult) => void;
+  flowMode: "graph" | "table";
+  setFlowMode: (mode: "graph" | "table") => void;
+  egoAddress: string | null;
+  setEgoAddress: (address: string | null) => void;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -146,6 +150,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [activeLevelPath, setActiveLevelPath] = useState<TreemapNode[]>([]);
   const [focusRequest, setFocusRequest] = useState<SearchResult | null>(null);
+  const [flowMode, setFlowMode] = useState<"graph" | "table">("graph");
+  const [egoAddress, setEgoAddress] = useState<string | null>(null);
   const pendingPathSegments = useRef<string[] | null>(null);
   const [urlReady, setUrlReady] = useState(false);
 
@@ -162,6 +168,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       if (parsed.metric) setMetricState(parsed.metric);
       if (parsed.view) setTreemapViewState(parsed.view);
       if (parsed.network) setNetworkState(parsed.network);
+      if (parsed.flowMode) setFlowMode(parsed.flowMode);
+      if (parsed.egoAddress) setEgoAddress(parsed.egoAddress);
       setUrlReady(true);
     });
   }, []);
@@ -234,6 +242,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       currentSearch: window.location.search,
       comparePeriod,
       network,
+      flowMode,
+      egoAddress,
     });
     if (next !== window.location.search) {
       window.history.replaceState(
@@ -242,7 +252,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         `${window.location.pathname}${next}`,
       );
     }
-  }, [urlReady, period, metric, treemapView, activeLevelPath, comparePeriod, network]);
+  }, [urlReady, period, metric, treemapView, activeLevelPath, comparePeriod, network, flowMode, egoAddress]);
 
   const selectSearchResult = useCallback(
     (result: SearchResult) => {
@@ -281,6 +291,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       setActiveLevelPath,
       focusRequest,
       selectSearchResult,
+      flowMode,
+      setFlowMode,
+      egoAddress,
+      setEgoAddress,
     }),
     [
       period,
@@ -306,6 +320,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       activeLevelPath,
       focusRequest,
       selectSearchResult,
+      flowMode,
+      egoAddress,
     ],
   );
 

@@ -104,4 +104,76 @@ describe("dashboard URL state", () => {
     });
     assert.equal(parseDashboardUrlSearch(search).comparePeriod, "7d");
   });
+
+  it("parses and writes flow mode from URL", () => {
+    const parsed = parseDashboardUrlSearch("?flowMode=table");
+    assert.equal(parsed.flowMode, "table");
+
+    const search = writeDashboardUrlSearch({
+      period: "1d",
+      metric: "ops",
+      view: "events",
+      path: [],
+      flowMode: "graph",
+    });
+    assert.match(search, /flowMode=graph/);
+  });
+
+  it("parses and writes ego address from URL", () => {
+    const address = "GABC7SWIAIXR4BWLLCVMAVYLFZMFQBWRFRGFTRWGIWG7E5KZLBFZ7KGP";
+    const parsed = parseDashboardUrlSearch(`?ego=${address}`);
+    assert.equal(parsed.egoAddress, address);
+
+    const search = writeDashboardUrlSearch({
+      period: "1d",
+      metric: "ops",
+      view: "events",
+      path: [],
+      egoAddress: address,
+    });
+    assert.match(search, new RegExp(`ego=${address}`));
+  });
+
+  it("ignores invalid ego address", () => {
+    const parsed1 = parseDashboardUrlSearch("?ego=invalid");
+    assert.equal(parsed1.egoAddress, undefined);
+
+    const parsed2 = parseDashboardUrlSearch("?ego=AABC7SWIAIXR4BWLLCVMAVYLFZMFQBWRFRGFTRWGIWG7E5KZLBFZ7KGP");
+    assert.equal(parsed2.egoAddress, undefined);
+  });
+
+  it("ignores invalid flow mode", () => {
+    const parsed = parseDashboardUrlSearch("?flowMode=invalid");
+    assert.equal(parsed.flowMode, undefined);
+  });
+
+  it("round-trips flow state with ego address", () => {
+    const address = "GABC7SWIAIXR4BWLLCVMAVYLFZMFQBWRFRGFTRWGIWG7E5KZLBFZ7KGP";
+    const search = writeDashboardUrlSearch({
+      period: "7d",
+      metric: "ops",
+      view: "actors",
+      path: [],
+      flowMode: "table",
+      egoAddress: address,
+    });
+
+    const parsed = parseDashboardUrlSearch(search);
+    assert.equal(parsed.flowMode, "table");
+    assert.equal(parsed.egoAddress, address);
+  });
+
+  it("clears flow params when set to null", () => {
+    const search = writeDashboardUrlSearch({
+      period: "1d",
+      metric: "ops",
+      view: "events",
+      path: [],
+      currentSearch: "?flowMode=graph&ego=GABC7SWIAIXR4BWLLCVMAVYLFZMFQBWRFRGFTRWGIWG7E5KZLBFZ7KGP",
+      flowMode: null,
+      egoAddress: null,
+    });
+    assert.doesNotMatch(search, /flowMode/);
+    assert.doesNotMatch(search, /ego/);
+  });
 });
