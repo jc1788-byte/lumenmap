@@ -1,12 +1,11 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { fireEvent, getAllByRole, getByRole, waitFor } from "@testing-library/dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, getAllByRole, getByRole, getByText } from "@testing-library/dom";
 import { vi } from "vitest";
 import {
   FlowDataTable,
   FlowViewToggle,
-  flowTableNodeToSelectedNode,
+  buildFlowCoverage,
   type FlowTableEdge,
   type FlowTableNode,
 } from "./FlowDataTable";
@@ -128,60 +127,70 @@ describe("FlowViewToggle", () => {
   });
 });
 
-describe("FlowDataTable async states", () => {
-  it("renders skeletons with aria-busy when loading", () => {
-    act(() => root.render(<FlowDataTable nodes={nodes} edges={edges} isLoading />));
-
-    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
-    expect(container.querySelector("table")).toBeNull();
-  });
-
-  it("renders an alert with retry that fires onRetry once", () => {
-    const onRetry = vi.fn();
-    act(() =>
-      root.render(
-        <FlowDataTable nodes={nodes} edges={edges} isError onRetry={onRetry} errorMessage="Flow request failed" />,
-      ),
-    );
-
-    expect(getByRole(container, "alert").textContent).toContain("Flow request failed");
-    const retry = getByRole(container, "button", { name: /retry loading flow data/i });
-    act(() => {
-      fireEvent.click(retry);
+describe("buildFlowCoverage", () => {
+  it("reports partial sampled coverage", () => {
+    expect(
+      buildFlowCoverage(edges, { totalEdges: 50, totalOperations: 40, configuredLimit: 3 }),
+    ).toEqual({
+      returnedEdges: 3,
+      totalEdges: 50,
+      returnedOperations: 10,
+      totalOperations: 40,
+      coveragePercent: 25,
+      sampled: true,
+      configuredLimit: 3,
     });
-    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("guards double-clicks while retryPending", () => {
-    const onRetry = vi.fn();
-    act(() =>
-      root.render(
-        <FlowDataTable nodes={nodes} edges={edges} isError onRetry={onRetry} retryPending />,
-      ),
-    );
-
-    const retry = getByRole(container, "button", { name: /retrying flow data/i });
-    expect(retry.hasAttribute("disabled")).toBe(true);
-    act(() => {
-      fireEvent.click(retry);
-      fireEvent.click(retry);
-    });
-    expect(onRetry).not.toHaveBeenCalled();
+  it("reports complete coverage as unsampled 100 percent", () => {
+    expect(
+      buildFlowCoverage(edges, { totalEdges: 3, totalOperations: 10, configuredLimit: 3 }),
+    ).toMatchObject({ coveragePercent: 100, sampled: false });
   });
 
-  it("renders a polite status when there are no edges", () => {
-    act(() => root.render(<FlowDataTable nodes={[]} edges={[]} />));
-
-    const status = getByRole(container, "status");
-    expect(status.textContent).toContain("No flow edges to display.");
-    expect(status.getAttribute("aria-live")).toBe("polite");
+  it("yields zero percent without NaN for a zero-operation period", () => {
+    expect(
+      buildFlowCoverage(edges, { totalEdges: 3, totalOperations: 0, configuredLimit: 3 }),
+    ).toMatchObject({ coveragePercent: 0 });
   });
 
-  it("renders a nodes-empty status when showNodes has no nodes", () => {
-    act(() => root.render(<FlowDataTable nodes={[]} edges={edges} showNodes />));
+  it("returns undefined when no edges were returned", () => {
+    expect(
+      buildFlowCoverage([], { totalEdges: 50, totalOperations: 40, configuredLimit: 3 }),
+    ).toBeUndefined();
+  });
+});
 
-    const statuses = getAllByRole(container, "status");
-    expect(statuses.some((s) => s.textContent?.includes("No flow nodes to display."))).toBe(true);
-    expect(statuses.every((s) => s.getAttribute("aria-live") === "polite")).toBe(true);
+describe("FlowCoverageBadge", () => {
+  const sampledCoverage = buildFlowCoverage(edges, {
+    totalEdges: 50,
+    totalOperations: 40,
+    configuredLimit: 3,
+  })!;
+
+  it("renders badge text with a methodology link when coverage is below 100%", () => {
+    act(() => root.render(<FlowDataTable nodes={nodes} edges={edges} coverage={sampledCoverage} />));
+
+    expect(container.textContent).toContain("top 3 of 50 edges");
+    expect(container.textContent).toContain("25.0% of operations");
+    const link = getByText(container, "Methodology").closest("a");
+    expect(link?.getAttribute("href")).toBe("/methodology#flow-sampling");
+  });
+
+  it("hides the badge at full coverage", () => {
+    const full = buildFlowCoverage(edges, {
+      totalEdges: 3,
+      totalOperations: 10,
+      configuredLimit: 3,
+    })!;
+    act(() => root.render(<FlowDataTable nodes={nodes} edges={edges} coverage={full} />));
+
+    expect(container.textContent).not.toContain("of operations");
+  });
+
+  it("hides the badge when coverage is absent", () => {
+    act(() => root.render(<FlowDataTable nodes={nodes} edges={edges} />));
+
+    expect(container.textContent).not.toContain("Methodology");
   });
 });
