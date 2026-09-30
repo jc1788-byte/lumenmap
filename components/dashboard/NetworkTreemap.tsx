@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { TreemapNode } from "@/lib/types";
+import { getErrorCopy } from "@/lib/error-copy";
 
 const CATEGORY_LEGEND = [
   { key: "soroban", label: "Soroban" },
@@ -111,6 +112,9 @@ export function NetworkTreemap() {
   const isFlowView = chartView === "flow";
   // Only link the tab panel when the switcher (and its tabs) are rendered.
   const chartPanelId = flowViewEnabled ? "chart-view-panel" : undefined;
+
+  const errorCode = (error as any)?.code as string | undefined;
+  const errorCopy = errorCode ? getErrorCopy(errorCode as any) : null;
 
   const toggleCategory = (key: string) => {
     setExcludedCategories((prev) => {
@@ -314,27 +318,30 @@ export function NetworkTreemap() {
           </div>
         ) : isError || !data || !activeTreemap || !filteredTreemap ? (
           <div className="flex h-[420px] flex-col items-center justify-center gap-4 rounded-xl border border-red-500/20 bg-red-500/5 p-6 text-center text-sm text-red-200 sm:h-[520px] lg:h-[600px]">
-            <p role="alert">{error?.message ?? "Unable to load treemap data."}</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleRetry}
-              disabled={retryPending}
-              aria-busy={retryPending}
-              aria-label={
-                retryPending
-                  ? "Retrying network activity data"
-                  : "Retry loading network activity data"
-              }
-              className="gap-2 border-red-500/30 text-red-100 hover:bg-red-500/10"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${retryPending ? "animate-spin" : ""}`}
-                aria-hidden="true"
-              />
-              {retryPending ? "Retrying…" : "Retry"}
-            </Button>
+            <p role="alert">{errorCopy?.message ?? error?.message ?? "Unable to load treemap data."}</p>
+            {errorCopy?.hint && <p className="text-xs text-zinc-400">{errorCopy.hint}</p>}
+            {errorCopy?.showRetry && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRetry}
+                disabled={retryPending}
+                aria-busy={retryPending}
+                aria-label={
+                  retryPending
+                    ? "Retrying network activity data"
+                    : "Retry loading network activity data"
+                }
+                className="gap-2 border-red-500/30 text-red-100 hover:bg-red-500/10"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${retryPending ? "animate-spin" : ""}`}
+                  aria-hidden="true"
+                />
+                {retryPending ? "Retrying…" : "Retry"}
+              </Button>
+            )}
           </div>
         ) : (
           <div key={`${period}-${treemapView}-${metric}-${excludedCategories.size}`} className={CHART_FRAME_CLASS}>
