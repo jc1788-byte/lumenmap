@@ -50,8 +50,8 @@ function DashboardContent() {
             <Image
               src="/logo.png"
               alt="LumenMap"
-              width={44}
-              height={44}
+              width=44
+              height=44
               className="shrink-0"
               priority
             />
@@ -95,7 +95,7 @@ function DashboardContent() {
           <p>{unsupportedMetricMessage(metric)}</p>
           <button
             type="button"
-            className="mt-2 text-sm font-medium text-amber-50 underline"
+            className="mt-2 inline-flex min-h-[44px] items-center text-sm font-medium text-amber-50 underline"
             onClick={() => setMetric("ops")}
           >
             Switch to operations
@@ -113,18 +113,21 @@ function DashboardContent() {
 
       <CategoryShareChart />
 
-      <div role="group" aria-label="Visualization" className="flex gap-2">
-        {(["treemap", "flow"] as const).map((view) => (
-          <button
-            key={view}
-            type="button"
-            aria-pressed={visualization === view}
-            onClick={() => setVisualization(view)}
-            className={`rounded-lg border px-4 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-stellar-light ${visualization === view ? "border-stellar bg-stellar/20 text-white" : "border-white/10 text-zinc-300 hover:text-white"}`}
-          >
-            {view === "flow" ? "Flow" : "Treemap"}
-          </button>
-        ))}
+      <div
+        className={`grid min-w-0 grid-cols-1 gap-6 transition-all duration-300 ${''}
+          selectedNode
+            ? "xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]"
+            : "xl:grid-cols-1"
+        }`.concat("")}
+      >
+        <div className="min-w-0">
+          <NetworkTreemap />
+        </div>
+        {selectedNode && (
+          <div className="min-w-0 scroll-mt-4" id="detail-panel-container">
+            <DetailPanel />
+          </div>
+        )}
       </div>
 
       {visualization === "flow" ? (
