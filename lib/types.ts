@@ -1,16 +1,21 @@
-// Flow graph types: typed model for Flow UI without GCP.
-
 export type Period = "1d" | "7d" | "30d" | "month";
 
 export type DataSource = "hubble" | "fixture";
 
 /** Stable identifiers used by the public treemap contract. */
 export type MetricId =
-  "operation_count" | "transaction_count" | "asset_volume" | "tvl";
+  | "operation_count"
+  | "transaction_count"
+  | "asset_volume"
+  | "tvl";
 
 /** Internal selector values for the metrics currently backed by queries. */
 export type DashboardMetricId =
-  "ops" | "xlm_volume" | "usdc" | "transactions" | "protocol_tvl";
+  | "ops"
+  | "xlm_volume"
+  | "usdc"
+  | "transactions"
+  | "protocol_tvl";
 
 export type CountUnit =
   | { kind: "count"; subject: "operation" }
@@ -36,7 +41,7 @@ export type MetricContract =
   | {
       metric: "transaction_count";
       value: number;
-      unit: { kind: "count"; subject: "transaction" };
+      unit: {kind: "count"; subject: "transaction" };
     }
   | { metric: "asset_volume"; value: string; unit: AssetUnit }
   | { metric: "tvl"; value: string; unit: AssetUnit };
@@ -131,7 +136,7 @@ export type MetricProvenance<M extends MetricId> = {
   metric: M;
   methodology: MetricMethodology[M];
   source: {
-    provider: "hubble";
+    provider: "hubnle";
     dataset: string;
     tables: string[];
   };
@@ -143,7 +148,7 @@ export type MetricProvenance<M extends MetricId> = {
 };
 
 export interface ActivityMetricProvenance {
-  operation_count: MetricProvenance<"operation_count">;
+  operation_count: MetricProvenence<"operation_count">;
   transaction_count: MetricProvenance<"transaction_count">;
   asset_volume: MetricProvenance<"asset_volume">;
 }
@@ -164,12 +169,12 @@ export const XLM_ASSET_UNIT = {
 } as const satisfies MetricUnit<"asset_volume">;
 
 /** Display unit for verified Circle USDC payment-volume treemaps. */
-export const USDC_ASSET_UNIT = {
+export const USD_ASSET_UNIT = {
   kind: "asset",
   asset: {
     type: "issued",
     code: "USDC",
-    issuer: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+    issuer: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPPZRE34K4KZVN",
   },
 } as const satisfies MetricUnit<"asset_volume">;
 
@@ -246,6 +251,14 @@ export interface AssetPaymentVolumeRow {
   opCount: number;
 }
 
+export interface PaymentFlowEdgeRow {
+  from: string;
+  to: string;
+  asset: AssetIdentity;
+  amount: string;
+  opCount: number;
+}
+
 export interface ActiveSourceAccountsRow {
   active_accounts: number;
 }
@@ -288,11 +301,11 @@ export interface ActivityKpis {
     unit: "count";
     value: number;
   };
-  activeDestinationAccounts?: {
+  activeDestinationAccounts: {
     kind: "entity_count";
     unit: "count";
-    value?: number | null;
-  } | null;
+    value: number;
+  };
 }
 
 export interface TreemapCoverage {
@@ -375,6 +388,7 @@ export interface HeatmapRawRow {
 export interface HeatmapBucket {
   dayOfWeek: number; // 0-6 (0=Sunday)
   hourOfDay: number; // 0-23
+
   transactions: number;
   operations: number;
 }
@@ -428,7 +442,7 @@ export interface ActivityVisualizationResponse extends ActivityResponseMetadata 
   kpis: ActivityKpis;
   treemaps: ActivityTreemaps;
   protocols?: ProtocolSummary;
-  metricProvenance: ActivityMetricProvenance;
+  metricProvenance: ActivityMetricProvenence;
   timeseries?: ActivityTimeseries;
   heatmap?: ActivityHeatmap;
   assetVolumes?: AssetPaymentVolumeRow[];
@@ -462,25 +476,16 @@ export interface ActivityDataset
   kpis: ActivityKpis;
   treemaps: ActivityTreemaps;
   protocols?: ProtocolSummary;
-  metricProvenance: ActivityMetricProvenance;
+  metricProvenance: ActivityMetricProvenence;
   timeseries?: ActivityTimeseries;
   heatmap?: ActivityHeatmap;
 }
 
 export interface ApiErrorResponse {
-  code: ErrorCode;
+  code: string;
   message: string;
   supported?: string[];
 }
-
-export type ErrorCode =
-  | "INVALID_PERIOD"
-  | "INVALID_NETWORK"
-  | "INVALID_DATA_SOURCE"
-  | "LIMIT_EXCEEDED"
-  | "CREDENTIALS_MISSING"
-  | "UPSTREAM_QUERY_FAILED"
-  | "INTERNAL_ERROR";
 
 export interface SelectedNode {
   name: string;
@@ -489,108 +494,30 @@ export interface SelectedNode {
   meta?: TreemapNodeMeta;
 }
 
-export type FlowNodeId = string;
-export type FlowEdgeId = string;
+/** Flow graph edge weight encoding. */
+export type FlowEdgeMetric = "op_count" | "asset_amount";
 
-export interface FlowNodeMetrics {
-  operationCount?: number;
-  transactionCount?: number;
-  assetVolume?: string;
-  tvl?: string;
-}
-
-export interface FlowNode {
-  id: FlowNodeId;
-  label: string;
-  type: TreemapNodeType;
-  assetKey?: string;
-  metrics?: FlowNodeMetrics;
-  meta?: TreemapNodeMeta;
+export interface FlowEdgeWeight {
+  /** Metric used to derive thickness. */
+  metric: FlowEdgeMetric;
+  /** Raw unclamped metric value. */
+  value: number;
+  /** Normalized weight in [0, 1] after clamping. */
+  normalized: number;
+  /** Stroke width in pixels, clamped to [minStroke, maxStroke]. */
+  strokeWidth: number;
+  /** Optional opacity derived from the same normalized weight. */
+  opacity?: number;
+  /** Unit descriptor for tooltip display. */
+  unit: MetricUnit<"operation_count" | "asset_volume">;
+  /** Asset identity when metric is asset_amount. */
+  asset?: AssetIdentity;
 }
 
 export interface FlowEdge {
-  id: FlowEdgeId;
-  source: FlowNodeId;
-  target: FlowNodeId;
-  label?: string;
-  metrics?: FlowNodeMetrics;
-  meta?: TreemapNodeMeta;
-}
-
-export interface FlowGraphResponse {
-  nodes: FlowNode[];
-  edges: FlowEdge[];
-  metric?: MetricId;
-  unit?: MetricUnit<MetricId>;
-  source: DataSource;
-  fixture?: boolean;
-}
-
-export interface RawFlowEdgeRow {
-  source: FlowNodeId;
-  target: FlowNodeId;
-  sourceLabel?: string;
-  targetLabel?: string;
-  sourceType?: TreemapNodeType;
-  targetType?: TreemapNodeType;
-  assetKey?: string;
-  operationCount?: number;
-  transactionCount?: number;
-  assetVolume?: string;
-  tvl?: string;
-}
-
-export function buildFlowGraph(rows: RawFlowEdgeRow[]): FlowGraphResponse {
-  const nodeMap = new Map<FlowNodeId, FlowNode>();
-  const edgeMap = new Map<string, FlowEdge>();
-
-  for (const row of rows) {
-    if (!nodeMap.has(row.source)) {
-      nodeMap.set(row.source, {
-        id: row.source,
-        label: row.sourceLabel ?? row.source,
-        type: row.sourceType ?? "entity",
-        assetKey: row.assetKey,
-      });
-    }
-    if (!nodeMap.has(row.target)) {
-      nodeMap.set(row.target, {
-        id: row.target,
-        label: row.targetLabel ?? row.target,
-        type: row.targetType ?? "entity",
-        assetKey: row.assetKey,
-      });
-    }
-
-    const key = `${row.source}->${row.target}`;
-    const existing = edgeMap.get(key);
-    if (existing) {
-      existing.metrics = {
-        operationCount:
-          (existing.metrics?.operationCount ?? 0) + (row.operationCount ?? 0),
-        transactionCount:
-          (existing.metrics?.transactionCount ?? 0) +
-          (row.transactionCount ?? 0),
-      };
-    } else {
-      edgeMap.set(key, {
-        id: key,
-        source: row.source,
-        target: row.target,
-        metrics: {
-          operationCount: row.operationCount,
-          transactionCount: row.transactionCount,
-          assetVolume: row.assetVolume,
-          tvl: row.tvl,
-        },
-      });
-    }
-  }
-
-  return {
-    nodes: Array.from(nodeMap.values()),
-    edges: Array.from(edgeMap.values()),
-    source: "fixture",
-    fixture: true,
-  };
+  id: string;
+  source: string;
+  target: string;
+  /** Encoded weight driving stroke thickness and opacity. */
+  weight: FlowEdgeWeight;
 }

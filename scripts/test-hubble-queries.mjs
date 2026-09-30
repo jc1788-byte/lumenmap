@@ -72,6 +72,7 @@ const queries = queryRegistry
       "activeSourceAccountsQuery",
       "nativePaymentVolumeQuery",
       "activeDestinationCountQuery",
+      "paymentFlowEdgesQuery",
     ].includes(entry.name),
   )
   .map((entry) => ({

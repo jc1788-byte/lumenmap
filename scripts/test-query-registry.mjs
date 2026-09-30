@@ -18,6 +18,8 @@ import {
   activeSourceAccountsQuery,
   usdcCategoryQuery,
   usdcAccountQuery,
+  paymentFlowEdgesQuery,
+  flowEdgeQuery,
   heatmapQuery,
 } from "../lib/hubble/shared-queries.mjs";
 
@@ -38,6 +40,8 @@ const queryMap = {
   activeSourceAccountsQuery,
   usdcCategoryQuery,
   usdcAccountQuery,
+  paymentFlowEdgesQuery,
+  flowEdgeQuery,
   heatmapQuery,
 };
 
