@@ -35,7 +35,7 @@ export function getCacheDriver(): CacheDriver {
         const message =
           error instanceof Error ? error.message : "redis unavailable";
         console.warn(
-          `[cache] CACHE_BACKEND=redis unavailable (${message}); falling back to in-memory`,
+          `[cache] CACHE_BACKEN=redis unavailable (${message}); falling back to in-memory`,
         );
       }
       activeDriver = new MemoryCacheDriver();

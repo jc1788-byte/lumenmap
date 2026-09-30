@@ -1,3 +1,5 @@
+// Flow graph types: typed model for Flow UI without GCP.
+
 export type Period = "1d" | "7d" | "30d" | "month";
 
 export type DataSource = "hubble" | "fixture";
@@ -476,4 +478,110 @@ export interface SelectedNode {
   value: number;
   share: number;
   meta?: TreemapNodeMeta;
+}
+
+export type FlowNodeId = string;
+export type FlowEdgeId = string;
+
+export interface FlowNodeMetrics {
+  operationCount?: number;
+  transactionCount?: number;
+  assetVolume?: string;
+  tvl?: string;
+}
+
+export interface FlowNode {
+  id: FlowNodeId;
+  label: string;
+  type: TreemapNodeType;
+  assetKey?: string;
+  metrics?: FlowNodeMetrics;
+  meta?: TreemapNodeMeta;
+}
+
+export interface FlowEdge {
+  id: FlowEdgeId;
+  source: FlowNodeId;
+  target: FlowNodeId;
+  label?: string;
+  metrics?: FlowNodeMetrics;
+  meta?: TreemapNodeMeta;
+}
+
+export interface FlowGraphResponse {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  metric?: MetricId;
+  unit?: MetricUnit<MetricId>;
+  source: DataSource;
+  fixture?: boolean;
+}
+
+export interface RawFlowEdgeRow {
+  source: FlowNodeId;
+  target: FlowNodeId;
+  sourceLabel?: string;
+  targetLabel?: string;
+  sourceType?: TreemapNodeType;
+  targetType?: TreemapNodeType;
+  assetKey?: string;
+  operationCount?: number;
+  transactionCount?: number;
+  assetVolume?: string;
+  tvl?: string;
+}
+
+export function buildFlowGraph(rows: RawFlowEdgeRow[]): FlowGraphResponse {
+  const nodeMap = new Map<FlowNodeId, FlowNode>();
+  const edgeMap = new Map<string, FlowEdge>();
+
+  for (const row of rows) {
+    if (!nodeMap.has(row.source)) {
+      nodeMap.set(row.source, {
+        id: row.source,
+        label: row.sourceLabel ?? row.source,
+        type: row.sourceType ?? "entity",
+        assetKey: row.assetKey,
+      });
+    }
+    if (!nodeMap.has(row.target)) {
+      nodeMap.set(row.target, {
+        id: row.target,
+        label: row.targetLabel ?? row.target,
+        type: row.targetType ?? "entity",
+        assetKey: row.assetKey,
+      });
+    }
+
+    const key = `${row.source}->${row.target}`;
+    const existing = edgeMap.get(key);
+    if (existing) {
+      existing.metrics = {
+        operationCount:
+          (existing.metrics?.operationCount ?? 0) + (row.operationCount ?? 0),
+        transactionCount:
+          (existing.metrics?.transactionCount ?? 0) +
+          (row.transactionCount ?? 0),
+      };
+    } else {
+      edgeMap.set(key, {
+        id: key,
+        source: row.source,
+        target: row.target,
+        metrics: {
+          operationCount: row.operationCount,
+          transactionCount: row.transactionCount,
+          assetVolume: row.assetVolume,
+          tvl: row.tvl,
+        },
+      });
+    }
+  }
+
+  return {
+    nodes: Array.from(nodeMap.values()),
+    edges: Array.from(edgeMap.values()),
+    source: "fixture",
+    fixture: true,
+  };
 }

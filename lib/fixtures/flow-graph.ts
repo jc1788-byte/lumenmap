@@ -1,89 +1,54 @@
-import type { FlowGraph } from "@/lib/types/flow";
-
 /**
- * Fixture flow graphs keyed by period. Used when live credentials are
- * absent so the Flow UI can render deterministic data in development and
- * test environments.
+ * Illustrative flow-graph fixture for opt-in local/e2e mode
+ * (LUMENMA_DATA_SOURCE=fixture). Values do not reflect real network state
+ * and must never be selected silently in production.
  */
-export const flowGraphFixtures: Record<string, FlowGraph> = {
-  "1d": {
-    period: "1d",
-    generatedAt: "2024-01-01T00:00:00.000Z",
-    source: "fixture",
-    nodes: [
-      { id: "account:alice", label: "Alice", kind: "account", value: 1250 },
-      { id: "account:bob", label: "Bob", kind: "account", value: 980 },
-      { id: "account:carol", label: "Carol", kind: "account", value: 640 },
-      { id: "account:dave", label: "Dave", kind: "account", value: 410 },
-    ],
-    edges: [
-      { id: "alice->bob", source: "account:alice", target: "account:bob", value: 320, count: 12 },
-      { id: "bob->carol", source: "account:bob", target: "account:carol", value: 180, count: 7 },
-      { id: "carol->dave", source: "account:carol", target: "account:dave", value: 95, count: 4 },
-      { id: "dave->alice", source: "account:dave", target: "account:alice", value: 40, count: 2 },
-    ],
-  },
-  "7d": {
-    period: "7d",
-    generatedAt: "2024-01-01T00:00:00.000Z",
-    source: "fixture",
-    nodes: [
-      { id: "account:alice", label: "Alice", kind: "account", value: 8700 },
-      { id: "account:bob", label: "Bob", kind: "account", value: 6420 },
-      { id: "account:carol", label: "Carol", kind: "account", value: 4100 },
-      { id: "account:dave", label: "Dave", kind: "account", value: 2850 },
-    ],
-    edges: [
-      { id: "alice->bob", source: "account:alice", target: "account:bob", value: 2100, count: 64 },
-      { id: "bob->carol", source: "account:bob", target: "account:carol", value: 1250, count: 41 },
-      { id: "carol->dave", source: "account:carol", target: "account:dave", value: 670, count: 23 },
-      { id: "dave->alice", source: "account:dave", target: "account:alice", value: 280, count: 11 },
-    ],
-  },
-  "30d": {
-    period: "30d",
-    generatedAt: "2024-01-01T00:00:00.000Z",
-    source: "fixture",
-    nodes: [
-      { id: "account:alice", label: "Alice", kind: "account", value: 34200 },
-      { id: "account:bob", label: "Bob", kind: "account", value: 28750 },
-      { id: "account:carol", label: "Carol", kind: "account", value: 19800 },
-      { id: "account:dave", label: "Dave", kind: "account", value: 12400 },
-    ],
-    edges: [
-      { id: "alice->bob", source: "account:alice", target: "account:bob", value: 9800, count: 275 },
-      { id: "bob->carol", source: "account:bob", target: "account:carol", value: 5600, count: 189 },
-      { id: "carol->dave", source: "account:carol", target: "account:dave", value: 3100, count: 98 },
-      { id: "dave->alice", source: "account:dave", target: "account:alice", value: 1400, count: 52 },
-    ],
-  },
-  "90d": {
-    period: "90d",
-    generatedAt: "2024-01-01T00:00:00.000Z",
-    source: "fixture",
-    nodes: [
-      { id: "account:alice", label: "Alice", kind: "account", value: 98700 },
-      { id: "account:bob", label: "Bob", kind: "account", value: 84300 },
-      { id: "account:carol", label: "Carol", kind: "account", value: 56200 },
-      { id: "account:dave", label: "Dave", kind: "account", value: 37600 },
-    ],
-    edges: [
-      { id: "alice->bob", source: "account:alice", target: "account:bob", value: 28400, count: 810 },
-      { id: "bob->carol", source: "account:bob", target: "account:carol", value: 16700, count: 542 },
-      { id: "carol->dave", source: "account:carol", target: "account:dave", value: 9200, count: 310 },
-      { id: "dave->alice", source: "account:dave", target: "account:alice", value: 4100, count: 145 },
-    ],
-  },
-};
 
-/**
- * Returns the fixture flow graph for the given period. Throws if the period
- * has no fixture registered.
- */
-export function getFlowGraphFixture(period: string): FlowGraph {
-  const graph = flowGraphFixtures[period];
-  if (!graph) {
-    throw new Error(`No flow graph fixture registered for period: ${period}`);
-  }
-  return graph;
+import { buildFlowGraph } from "@/lib/flow/build-graph";
+import type {
+  FlowEdgeRow,
+  FlowGraphResponse,
+} from "@/lib/flow/types";
+
+export const FIXTURE_FLOW_EDGE_ROWS: FlowEdgeRow[] = [
+  {
+    source_id: "GA5ZSEJYB37JRC5AVCIA5MOP4RGHTM335XKKX3IHOJAPP5RE34K4KZVN",
+    target_id: "CA4HEQTL2WPEUYKYKCDOHCDNIV4QHNJ7EL4J4NQ6VADP7SYHVRYZ7AW2",
+    op_count: 42000,
+    txn_count: 31000,
+    xlm_volume: 12000,
+    asset_keys: ["xlm:native"],
+  },
+  {
+    source_id: "GA5ZSEJYB37JRC5AVCIA5MOP4RGHTM335XKKX3IHOJAPP5RE34K4ZVN",
+    target_id: "CA4HEQTL2WPEUYKYKCDOHCDNIV4QHNJ7EL4J4NQ6VADP7SYHVRYZ7AW2",
+    op_count: 18000,
+    txn_count: 12000,
+    usdc_volume: 80000,
+    asset_keys: [
+      "usdc:GA5ZSEJYB37JRC5AVCIA5MOP4RGHTM335XKKX3IHOJAPR5RE34K4KZVN",
+    ],
+  },
+  {
+    source_id: "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNKNLXLTCV",
+    target_id: "CA2TZIB56KYKD46F7IFBF6XPO5TDNK6N2U6BRTGZ5AF4WUSBN6BKZMGF",
+    op_count: 22000,
+    txn_count: 15000,
+    xlm_volume: 4500,
+    asset_keys: ["xlm:native"],
+  },
+  {
+    source_id: "GA5ZSEJYB37JRC5AVCIA5MOP4RGHTM335XKKX3IHOJAPP5RE34K4KZVN",
+    target_id: "CA2TZIB56KYKD46F7IFBF6XPO5TDNK6N2U6BRTGZ5AF4WUSBN6BKZMGF",
+    op_count: 9500,
+    txn_count: 7200,
+    usdc_volume: 9200,
+    asset_keys: [
+      "usdc:GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNKNLXLTCV",
+    ],
+  },
+];
+
+export function buildFixtureFlowGraph(): FlowGraphResponse {
+  return buildFlowGraph(FIXTURE_FLOW_EDGE_ROWS);
 }
