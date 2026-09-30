@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
 import { CategoryShareChart } from "@/components/dashboard/CategoryShareChart";
@@ -22,6 +23,7 @@ import { DashboardSearch } from "@/components/dashboard/DashboardSearch";
 import { ComparisonPanel } from "@/components/dashboard/ComparisonPanel";
 import { SavedViewsControls } from "@/components/dashboard/SavedViewsControls";
 import { NetworkSelector } from "@/components/dashboard/NetworkSelector";
+import { FlowView } from "@/components/dashboard/FlowView";
 import {
   isMetricSupportedOnNetwork,
   networkLabel,
@@ -29,15 +31,9 @@ import {
 } from "@/lib/network";
 
 function DashboardContent() {
-  const {
-    selectedNode,
-    network,
-    metric,
-    setMetric,
-    visualization,
-    setVisualization,
-    data,
-  } = useDashboard();
+  const { selectedNode, network, metric, setMetric, period } = useDashboard();
+  const [showFlow, setShowFlow] = useState(false);
+  const [flowAccount, setFlowAccount] = useState<string | null>(null);
   const metricSupported = isMetricSupportedOnNetwork(metric, network);
 
   return (
@@ -85,75 +81,78 @@ function DashboardContent() {
 
       <SavedViewsControls />
 
-      {!metricSupported && (
-        <div
-          role="status"
-          className="rounded-lg border border-amber-800/70 bg-amber-950/40 px-4 py-3 text-sm text-amber-100"
+      <div role="group" aria-label="Dashboard view" className="flex gap-2">
+        <button
+          type="button"
+          aria-pressed={!showFlow}
+          onClick={() => setShowFlow(false)}
+          className="rounded-lg border border-white/20 px-3 py-1 text-sm text-white aria-pressed:bg-white/10"
         >
-          <p>{unsupportedMetricMessage(metric)}</p>
-          <button
-            type="button"
-            className="mt-2 inline-flex min-h-[44px] items-center text-sm font-medium text-amber-50 underline"
-            onClick={() => setMetric("ops")}
-          >
-            Switch to operations
-          </button>
-        </div>
-      )}
-
-      <DashboardSearch />
-
-      <KpiCards />
-
-      <ComparisonPanel />
-
-      <AssetVolumePanel />
-
-      <CategoryShareChart />
-
-      <div
-        className={`grid min-w-0 grid-cols-1 gap-6 transition-all duration-300 ${''}
-          selectedNode
-            ? "xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]"
-            : "xl:grid-cols-1"
-        }`.concat("")}
-      >
-        <div className="min-w-0">
-          <FlowEgoSection />
-          <NetworkTreemap />
-        </div>
-        {selectedNode && (
-          <div className="min-w-0 scroll-mt-4" id="detail-panel-container">
-            <DetailPanel />
-          </div>
-        )}
+          Overview
+        </button>
+        <button
+          type="button"
+          aria-pressed={showFlow}
+          onClick={() => { setFlowAccount(null); setShowFlow(true); }}
+          className="rounded-lg border border-white/20 px-3 py-1 text-sm text-white aria-pressed:bg-white/10"
+        >
+          Flow
+        </button>
       </div>
 
-      {visualization === "flow" ? (
-        <FlowView fixture={data?.source === "fixture"} />
+      {showFlow ? (
+        <FlowView
+          key={`${period}:${network}:${flowAccount ?? "overview"}`}
+          account={flowAccount}
+          onAccountChange={setFlowAccount}
+        />
       ) : (
-        <div
-          className={`grid min-w-0 grid-cols-1 gap-6 transition-all duration-300 ${
-            selectedNode
-              ? "xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]"
-              : "xl:grid-cols-1"
-          }`}
-        >
-          <div className="min-w-0">
-            <NetworkTreemap />
-          </div>
-          {selectedNode && (
-            <div className="min-w-0 scroll-mt-4" id="detail-panel-container">
-              <DetailPanel />
+        <>
+          {!metricSupported && (
+            <div
+              role="status"
+              className="rounded-lg border border-amber-800/70 bg-amber-950/40 px-4 py-3 text-sm text-amber-100"
+            >
+              <p>{unsupportedMetricMessage(metric)}</p>
+              <button
+                type="button"
+                className="mt-2 text-sm font-medium text-amber-50 underline"
+                onClick={() => setMetric("ops")}
+              >
+                Switch to operations
+              </button>
             </div>
           )}
-        </div>
-      )}
 
-      <ProtocolBarChart />
-      <TemporalPatternsDisclosure />
-      <TimeSeriesChart />
-      
+          <DashboardSearch />
+          <KpiCards />
+          <ComparisonPanel />
+          <AssetVolumePanel />
+          <CategoryShareChart />
+
+          <div
+            className={`grid min-w-0 grid-cols-1 gap-6 transition-all duration-300 ${
+              selectedNode
+                ? "xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]"
+                : "xl:grid-cols-1"
+            }`}
+          >
+            <div className="min-w-0">
+              <NetworkTreemap />
+            </div>
+            {selectedNode && (
+              <div className="min-w-0 scroll-mt-4" id="detail-panel-container">
+                <DetailPanel onViewFlow={(account) => { setFlowAccount(account); setShowFlow(true); }} />
+              </div>
+            )}
+          </div>
+
+          <ProtocolBarChart />
+          <ActivityHeatmap />
+          <TimeSeriesChart />
+          <HourOfWeekHeatmap />
+        </>
+      )}
     </div>
   );
 }

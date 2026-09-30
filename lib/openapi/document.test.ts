@@ -9,6 +9,7 @@ describe("OpenAPI document", () => {
     assert.equal(openApiDocument.openapi, "3.1.0");
     assert.ok(openApiDocument.paths["/api/v1/activity"]?.get);
     assert.ok(openApiDocument.paths["/api/v1/timeseries"]?.get);
+    assert.ok(openApiDocument.paths["/api/v1/flow"]?.get);
     assert.ok(openApiDocument.paths["/api/health"]?.get);
     assert.ok(openApiDocument.paths["/api/openapi.json"]?.get);
   });

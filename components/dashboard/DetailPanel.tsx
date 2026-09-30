@@ -14,7 +14,7 @@ import { buildContractFunctionBreakdown } from "@/lib/entities/contract-function
 import { getMetricUnit } from "@/lib/metrics/units";
 import { formatNumber, formatPercent } from "@/lib/utils";
 
-export function DetailPanel() {
+export function DetailPanel({ onViewFlow }: { onViewFlow?: (account: string) => void }) {
   const {
     selectedNode,
     setSelectedNode,
@@ -204,6 +204,11 @@ export function DetailPanel() {
               address={address}
               type={selectedNode.meta?.type}
             />
+            {selectedNode.meta?.type === "account" && onViewFlow && (
+              <Button type="button" variant="ghost" size="sm" className="mt-2 text-stellar-light" onClick={() => onViewFlow(address)}>
+                View 1-hop flow
+              </Button>
+            )}
           </div>
         ) : null}
 

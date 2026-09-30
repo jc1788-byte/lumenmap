@@ -156,50 +156,22 @@ follows the common conventions above.
 - **Nodes.** One Stellar account ID that is the source or destination of at least
   one rendered edge. Labels change display names only. Node metrics (in/out
   operation count, in/out degree, in/out volume per asset) describe the sample,
-  not network-wide account totals.
-- **Edges.** Use `crypto-stellar.crypto_stellar_dbt.enriched_history_operations`
-  and its flattened columns (not the bronze `history_operations.details` record).
-  Each qualifying row yields one directed transfer from `op_source_account` to
-  the destination below. `successful = TRUE` excludes failed transactions.
-  Use the selected `closed_at` bounds; the Flow view follows the common period
-  convention above. The table's natural operation key is `op_id`.
-
-  | `type_string` | Destination column | Edge amount | Asset identity |
-  | --- | --- | --- | --- |
-  | `payment` | `to` | `amount` | `asset_type`, `asset_code`, `asset_issuer` |
-  | `path_payment_strict_receive` | `to` | `amount` (amount received) | `asset_type`, `asset_code`, `asset_issuer` (received asset) |
-  | `path_payment_strict_send` | `to` | `amount` (amount received) | `asset_type`, `asset_code`, `asset_issuer` (received asset) |
-  | `create_account` | `account` | `starting_balance` | Native XLM |
-  | `account_merge` | `into` | **Excluded:** no transferred balance amount on this operation row. Do not substitute `amount` or the account's current balance. | Native XLM, but no amount-bearing edge |
-
-  For path payments, `source_amount`, `source_asset_type`,
-  `source_asset_code`, and `source_asset_issuer` describe the input side of the
-  exchange. They do not measure the
-  value received by `to`; `source_max` and `destination_min` are bounds, not
-  executed amounts. One path payment yields one edge, never an edge per hop.
-  `create_account` is a funding edge, not part of the direct-payment-volume
-  metric above. `account_merge` may count toward active destination accounts,
-  but is excluded from this amount-bearing graph.
-
-  Keep only non-null, non-empty, distinct source and destination account IDs,
-  and finite, positive amounts. Do not infer a destination from the transaction
-  source or replace a missing amount with zero. Collapse qualifying rows by
-  `(source, destination, asset identity)`; sum their edge amounts and count their
-  operations. Exclude self-payments, failed transactions, incomplete rows, and
-  all other operation types, including DEX offers, liquidity-pool operations,
-  fees, and Soroban transfers. Edge amounts are not the Payment volume metric.
-- **Sampling and coverage.** Aggregate all qualifying rows before applying a
-  configurable top-N edge cap. Sort by operation count descending, then
-  normalized asset tuple `(asset_type, asset_code, asset_issuer)` ascending
-  (use empty code and issuer for native XLM),
-  then amount descending, source ID ascending, and destination ID ascending.
-  Thus amount only breaks ties within one asset; amounts in different assets
-  are never compared. Report the selected period, asset filter, cap N,
-  returned/total edge counts, returned/total
-  qualifying operation counts, and `sampled = (returned edges < total edges)`.
-  Compute totals before the cap using the same filters. Nodes touched only by
-  omitted edges are absent; an absent edge means "not in the sample", not "no
-  activity". Any amount coverage must be reported separately for each asset.
+  not network-wide account totals. An empty ego result retains the selected
+  account node so the empty state can identify it.
+- **Edges.** Source → destination of a successful `payment`,
+  `path_payment_strict_send`, `path_payment_strict_receive`, `create_account`
+  (funding edge), or `account_merge` (drain edge) operation. Operations for the
+  same `(source, destination, asset)` collapse into one edge summing amount and
+  operation count. Failed operations, self-payments, rows missing a source or
+  destination, and other operation types are excluded. Edge amounts are not the
+  Payment volume metric, which counts direct `payment` operations only.
+  Funding and account-drain rows without a reliable amount are counted as
+  operations, but their edge has `amountComplete: false` and the UI suppresses
+  the partial amount.
+- **Sampling and coverage.** Only the top 100 edges, ranked by operation count
+  and then by amount within the same asset, are returned. The API sets
+  `sampled` when more edges exist. An absent edge can therefore be outside the
+  sample rather than absent from the network.
 - **Asset modes.** Each edge has exactly one asset identity (code + issuer;
   native XLM is explicit). For `asset_type = 'native'`, use one XLM identity
   regardless of null code/issuer; for issued assets, require a non-empty code
