@@ -77,8 +77,8 @@ export function ExportControls({ svgRef }: ExportControlsProps) {
       let csvRows = rows;
       let filenamePrefix = "lumenmap-data";
 
-      if (data?.treemaps?.[treemapView]) {
-        const flattened = flattenTreemapForCsv(data.treemaps[treemapView]);
+      if (treemapView !== "flow" && data?.treemaps?.[treemapView as "events" | "actors"]) {
+        const flattened = flattenTreemapForCsv(data.treemaps[treemapView as "events" | "actors"]);
         if (flattened.length > 0) {
           csvRows = flattened;
           filenamePrefix = "lumenmap-treemap";

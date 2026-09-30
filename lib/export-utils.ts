@@ -210,10 +210,14 @@ export function getStructuredRowsForExport(
   treemapView: TreemapViewId
 ): { rows: Record<string, unknown>[]; syntheticIdentifiers: string[] } {
   const syntheticIdentifiers = ["other", "remainder"];
-  if (!data?.treemaps?.[treemapView]) {
+  if (treemapView === "flow" || !data?.treemaps || !(treemapView in data.treemaps)) {
     return { rows: [], syntheticIdentifiers };
   }
-  const rows = flattenTreemapForCsv(data.treemaps[treemapView]).map((row) => ({
+  const tree = data.treemaps[treemapView as "events" | "actors"];
+  if (!tree) {
+    return { rows: [], syntheticIdentifiers };
+  }
+  const rows = flattenTreemapForCsv(tree).map((row) => ({
     ...row,
     is_synthetic:
       String(row.name ?? "").toLowerCase().includes("other") ||
