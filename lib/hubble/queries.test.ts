@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { TOP_CONTRACT_LIMIT } from "@/lib/constants";
-import { mapActiveContractCountRow, mapFlowEdgeRows } from "./queries";
+import { mapAccountCounterpartyRows, mapActiveContractCountRow } from "./queries";
 
 describe("mapActiveContractCountRow", () => {
   test("counts each duplicate contract ID once", () => {
@@ -49,74 +49,78 @@ describe("mapActiveContractCountRow", () => {
   });
 });
 
-describe("mapFlowEdgeRows", () => {
-  test("maps valid flow edge rows", () => {
+describe("mapAccountCounterpartyRows", () => {
+  test("maps inbound and outbound rows with stable ordering and aliases", () => {
+    const gbbb = `G${"B".repeat(55)}`;
+    const gaaa = `G${"A".repeat(55)}`;
+    const gccc = `G${"C".repeat(55)}`;
     const rows = [
       {
-        source_account: "GAAA",
-        destination_account: "GBBB",
-        asset_key: "native:XLM",
+        counterparty: gbbb,
+        direction: "out",
+        asset_type: "native",
         asset_code: "XLM",
         asset_issuer: null,
-        amount: "50000000",
-        operation_count: 2,
+        amount: "15.5",
+        op_count: 3,
       },
       {
-        source_account: "GBBB",
-        destination_account: "GCCC",
-        asset_key: "issued:USDC",
+        counterparty_account: gaaa,
+        direction: "in",
+        asset_type: "credit_alphanum4",
         asset_code: "USDC",
-        asset_issuer: "GISS",
-        amount: "10000000",
-        operation_count: 1,
+        asset_issuer: "GISSUER",
+        amount: "27.25",
+        op_count: 5,
+      },
+      {
+        counterparty: gccc,
+        direction: "out",
+        asset_type: "credit_alphanum4",
+        asset_code: "USDC",
+        asset_issuer: "GISSUER",
+        amount: "27.25",
+        op_count: 5,
       },
     ];
 
-    const result = mapFlowEdgeRows(rows);
-    assert.equal(result.length, 2);
-    assert.equal(result[0].source_account, "GAAA");
-    assert.equal(result[0].asset_key, "native:XLM");
-    assert.equal(result[0].amount, "50000000");
-    assert.equal(result[1].asset_code, "USDC");
+    const mapped = mapAccountCounterpartyRows(rows);
+
+    assert.deepEqual(
+      mapped.map(({ counterparty, direction, amount, op_count }) => ({
+        counterparty,
+        direction,
+        amount,
+        op_count,
+      })),
+      [
+        { counterparty: gaaa, direction: "in", amount: "27.25", op_count: 5 },
+        { counterparty: gccc, direction: "out", amount: "27.25", op_count: 5 },
+        { counterparty: gbbb, direction: "out", amount: "15.5", op_count: 3 },
+      ],
+    );
+
+    assert.equal(mapped[0].counterparty_account, gaaa);
+    assert.deepEqual(mapped[0].asset, {
+      type: "issued",
+      code: "USDC",
+      issuer: "GISSUER",
+    });
   });
 
-  test("handles missing or null fields gracefully", () => {
+  test("omits invalid or empty counterparties and leaves self-payments to the caller", () => {
+    const gaaa = `G${"A".repeat(55)}`;
+    const gccc = `G${"C".repeat(55)}`;
     const rows = [
-      {
-        source_account: "GAAA",
-        destination_account: "GBBB",
-        asset_key: "native:XLM",
-        asset_code: "XLM",
-        asset_issuer: null,
-        amount: null,
-        operation_count: 0,
-      },
+      { counterparty: gaaa, direction: "in", asset_type: "native", amount: "10", op_count: 1 },
+      { counterparty: "", direction: "out", asset_type: "native", amount: "2", op_count: 2 },
+      { counterparty: "MALFORMED", direction: "out", asset_type: "native", amount: "3", op_count: 3 },
+      { counterparty: gccc, direction: "in", asset_type: "native", amount: "4", op_count: 4 },
     ];
 
-    const result = mapFlowEdgeRows(rows);
-    assert.equal(result.length, 1);
-    assert.equal(result[0].amount, "0");
-    assert.equal(result[0].operation_count, 0);
-  });
-
-  test("ensures each edge has a single asset mode", () => {
-    const rows = [
-      {
-        source_account: "GAAA",
-        destination_account: "GBBB",
-        asset_key: "native:XLM",
-        asset_code: "XLM",
-        asset_issuer: null,
-        amount: "50000000",
-        operation_count: 2,
-      },
-    ];
-
-    const result = mapFlowEdgeRows(rows);
-    assert.equal(result[0].asset_key, "native:XLM");
-    assert.equal(result[0].asset_code, "XLM");
-    assert.equal(result[0].asset_issuer, null);
-    // Verify no mixed assets - each edge has exactly one asset identity
-    assert.ok(result[0].asset_key.includes(":"));
+    assert.deepEqual(
+      mapAccountCounterpartyRows(rows).map(({ counterparty }) => counterparty),
+      [gccc, gaaa],
+    );
   });
 });
