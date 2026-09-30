@@ -90,7 +90,8 @@ export type DashboardUrlState = {
   pathSegments: string[];
   comparePeriod?: Period;
   network?: "mainnet" | "testnet";
-  searchQuery?: string;
+  flowMode?: "graph" | "table";
+  egoAddress?: string;
 };
 
 export function parseDashboardUrlSearch(
@@ -123,7 +124,19 @@ export function parseDashboardUrlSearch(
   const network = params.get("network");
   if (network === "mainnet" || network === "testnet") next.network = network;
 
+  const flowMode = params.get("flowMode");
+  if (flowMode === "graph" || flowMode === "table") next.flowMode = flowMode;
+
+  const egoAddress = params.get("ego");
+  if (egoAddress && isValidStellarAddress(egoAddress)) {
+    next.egoAddress = egoAddress;
+  }
+
   return next;
+}
+
+function isValidStellarAddress(address: string): boolean {
+  return /^[GC][A-Z2-7]{55}$/.test(address);
 }
 
 export function writeDashboardUrlSearch(input: {
@@ -134,7 +147,8 @@ export function writeDashboardUrlSearch(input: {
   currentSearch?: string;
   comparePeriod?: Period | null;
   network?: "mainnet" | "testnet";
-  chartView?: ChartViewId;
+  flowMode?: "graph" | "table" | null;
+  egoAddress?: string | null;
 }): string {
   const params = new URLSearchParams(
     (input.currentSearch ?? "").replace(/^\?/, ""),
@@ -157,6 +171,12 @@ export function writeDashboardUrlSearch(input: {
   const encodedPath = encodeDrillPath(input.path);
   if (encodedPath) params.set("path", encodedPath);
   else params.delete("path");
+
+  if (input.flowMode) params.set("flowMode", input.flowMode);
+  else params.delete("flowMode");
+
+  if (input.egoAddress) params.set("ego", input.egoAddress);
+  else params.delete("ego");
 
   const query = params.toString();
   return query ? `?${query}` : "";
