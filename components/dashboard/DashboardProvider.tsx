@@ -77,8 +77,12 @@ async function fetchActivity(
   if (network !== "mainnet") params.set("network", network);
   const response = await fetch(`/api/v1/activity?${params}`);
   if (!response.ok) {
-    const body = (await response.json()) as ApiErrorResponse;
-    throw new Error(body.message ?? "Failed to load activity data");
+    const body = (await response.json()) as { code?: string; message?: string };
+    const error = new Error(body.message ?? "Failed to load activity data");
+    if (body.code) {
+      (error as any).code = body.code;
+    }
+    throw error;
   }
   return response.json() as Promise<ActivityVisualizationResponse>;
 }

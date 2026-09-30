@@ -468,10 +468,19 @@ export interface ActivityDataset
 }
 
 export interface ApiErrorResponse {
-  code: string;
+  code: ErrorCode;
   message: string;
   supported?: string[];
 }
+
+export type ErrorCode =
+  | "INVALID_PERIOD"
+  | "INVALID_NETWORK"
+  | "INVALID_DATA_SOURCE"
+  | "LIMIT_EXCEEDED"
+  | "CREDENTIALS_MISSING"
+  | "UPSTREAM_QUERY_FAILED"
+  | "INTERNAL_ERROR";
 
 export interface SelectedNode {
   name: string;
