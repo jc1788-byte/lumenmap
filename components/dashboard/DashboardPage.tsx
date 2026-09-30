@@ -23,7 +23,7 @@ import { DashboardSearch } from "@/components/dashboard/DashboardSearch";
 import { ComparisonPanel } from "@/components/dashboard/ComparisonPanel";
 import { SavedViewsControls } from "@/components/dashboard/SavedViewsControls";
 import { NetworkSelector } from "@/components/dashboard/NetworkSelector";
-import { FlowView } from "@/components/dashboard/FlowView";
+import { KeyboardShortcuts } from "@/components/dashboard/KeyboardShortcuts";
 import {
   isMetricSupportedOnNetwork,
   networkLabel,
@@ -58,6 +58,7 @@ function DashboardContent() {
               </p>
             </div>
             <NetworkSelector />
+            <KeyboardShortcuts />
           </div>
           <FreshnessIndicator />
           <p className="text-xs text-zinc-500">
