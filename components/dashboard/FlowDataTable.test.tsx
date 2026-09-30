@@ -1,13 +1,17 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { fireEvent, getAllByRole, getByRole } from "@testing-library/dom";
+import { fireEvent, getAllByRole, getByRole, waitFor } from "@testing-library/dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi } from "vitest";
 import {
   FlowDataTable,
   FlowViewToggle,
+  flowTableNodeToSelectedNode,
   type FlowTableEdge,
   type FlowTableNode,
 } from "./FlowDataTable";
+import { DashboardProvider } from "./DashboardProvider";
+import { DetailPanel } from "./DetailPanel";
 
 const nodes: FlowTableNode[] = [
   { id: "GAAA", label: "Alpha Exchange", category: "exchange" },
@@ -105,5 +109,96 @@ describe("FlowViewToggle", () => {
     expect(tableButton.getAttribute("aria-pressed")).toBe("false");
     act(() => fireEvent.click(tableButton));
     expect(onChange).toHaveBeenCalledWith("table");
+  });
+});
+
+describe("flowTableNodeToSelectedNode", () => {
+  it("maps a labeled node to the shared DetailPanel selection shape", () => {
+    expect(
+      flowTableNodeToSelectedNode(nodes[0], { inflowOps: 1, outflowOps: 2 }),
+    ).toEqual({
+      name: "Alpha Exchange",
+      value: 3,
+      share: 0,
+      meta: {
+        type: "account",
+        id: "GAAA",
+        nodeId: "GAAA",
+        category: "exchange",
+        protocol: "exchange",
+        opCount: 3,
+      },
+    });
+  });
+});
+
+describe("FlowDataTable with DashboardProvider", () => {
+  function renderWithProvider() {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, refetchOnWindowFocus: false },
+      },
+    });
+    act(() => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <DashboardProvider>
+            <FlowDataTable nodes={nodes} edges={edges} showNodes />
+            <DetailPanel />
+          </DashboardProvider>
+        </QueryClientProvider>,
+      );
+    });
+  }
+
+  function nodeRow(id: string) {
+    const tables = getAllByRole(container, "table");
+    const row = tables[1].querySelector(`tbody tr[data-row-id="${id}"]`);
+    if (!row) throw new Error(`missing node row ${id}`);
+    return row as HTMLElement;
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ treemaps: {} }) }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("clicking a labeled node row populates DetailPanel", async () => {
+    renderWithProvider();
+    expect(container.querySelector("[data-canonical-address]")).toBeNull();
+
+    await act(async () => {
+      fireEvent.click(nodeRow("GAAA"));
+    });
+
+    await waitFor(() => {
+      expect(
+        container.querySelector('[data-canonical-address="GAAA"]'),
+      ).not.toBeNull();
+    });
+    expect(container.textContent).toContain("Alpha Exchange");
+    expect(container.textContent).toContain("exchange");
+    expect(container.textContent).toContain("Activity count");
+  });
+
+  it("Enter key on a node row populates DetailPanel", async () => {
+    renderWithProvider();
+
+    await act(async () => {
+      fireEvent.keyDown(nodeRow("GAAA"), { key: "Enter" });
+    });
+
+    await waitFor(() => {
+      expect(
+        container.querySelector('[data-canonical-address="GAAA"]'),
+      ).not.toBeNull();
+    });
+    expect(container.textContent).toContain("Alpha Exchange");
   });
 });

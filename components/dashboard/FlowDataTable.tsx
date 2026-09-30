@@ -3,6 +3,8 @@
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { cn, formatExactNumber, truncateAddress } from "@/lib/utils";
+import { useDashboard } from "@/components/dashboard/DashboardProvider";
+import type { SelectedNode } from "@/lib/types";
 
 /**
  * Minimal structural shapes of the Flow graph model. They are intentionally a
@@ -24,6 +26,50 @@ export interface FlowTableEdge {
   /** Aggregated amount in minor units (stroops, 7 decimals). */
   amount: string;
   operationCount: number;
+}
+
+export interface FlowNodeMetrics {
+  inflowOps: number;
+  outflowOps: number;
+}
+
+/**
+ * Maps a Flow node to the shared `SelectedNode` entity context consumed by
+ * `DetailPanel` (same shape treemap selection uses): label as name,
+ * address as `meta.id`, category as category/protocol, and summed
+ * in/out operation counts as the value. Strictly conforms to
+ * `SelectedNode` / `TreemapNodeMeta` in `lib/types.ts`.
+ */
+export function flowTableNodeToSelectedNode(
+  node: FlowTableNode,
+  metrics: FlowNodeMetrics,
+): SelectedNode {
+  const opCount = metrics.inflowOps + metrics.outflowOps;
+  return {
+    name: node.label,
+    value: opCount,
+    share: 0,
+    meta: {
+      type: "account",
+      id: node.id,
+      nodeId: node.id,
+      category: node.category ?? "account",
+      protocol: node.category,
+      opCount,
+    },
+  };
+}
+
+/**
+ * Returns the dashboard context when rendered inside `DashboardProvider`,
+ * else null so the table stays usable standalone (e.g. existing unit tests).
+ */
+function useOptionalDashboard() {
+  try {
+    return useDashboard();
+  } catch {
+    return null;
+  }
 }
 
 type SortDirection = "asc" | "desc";
@@ -158,6 +204,45 @@ export function FlowDataTable({
 }: FlowDataTableProps) {
   const edgeSort = useSort<EdgeSortKey>("amount");
   const nodeSort = useSort<NodeSortKey>("outflow");
+  const dashboard = useOptionalDashboard();
+
+  const totalsById = useMemo(() => {
+    const totals = new Map<string, { inflow: number; outflow: number }>();
+    for (const edge of edges) {
+      const src = totals.get(edge.source) ?? { inflow: 0, outflow: 0 };
+      src.outflow += edge.operationCount;
+      totals.set(edge.source, src);
+      const dst = totals.get(edge.destination) ?? { inflow: 0, outflow: 0 };
+      dst.inflow += edge.operationCount;
+      totals.set(edge.destination, dst);
+    }
+    return totals;
+  }, [edges]);
+
+  // Default row selection writes through to the shared DetailPanel selection
+  // state. Explicit `onSelect`/`selectedId` props remain controlled overrides.
+  // Edge ids never resolve to a node, so edge-row activation is a no-op here
+  // (node-only wiring per #290). Note `DashboardProvider` resets the shared
+  // selection on period/metric/view/network change, so a Flow selection does
+  // not survive period shifts; preserving entity selection across periods is
+  // deferred until the Flow canvas dataset (#287) is integrated.
+  const effectiveOnSelect =
+    onSelect ??
+    (dashboard
+      ? (id: string) => {
+          const node = nodes.find((candidate) => candidate.id === id);
+          if (!node) return;
+          const totals = totalsById.get(id) ?? { inflow: 0, outflow: 0 };
+          dashboard.setSelectedNode(
+            flowTableNodeToSelectedNode(node, {
+              inflowOps: totals.inflow,
+              outflowOps: totals.outflow,
+            }),
+          );
+        }
+      : undefined);
+  const effectiveSelectedId =
+    selectedId ?? dashboard?.selectedNode?.meta?.id ?? null;
 
   const labelById = useMemo(() => {
     const map = new Map<string, string>();
@@ -191,19 +276,10 @@ export function FlowDataTable({
   }, [edges, labelById, edgeSort]);
 
   const nodeRows = useMemo(() => {
-    const totals = new Map<string, { inflow: number; outflow: number }>();
-    for (const edge of edges) {
-      const src = totals.get(edge.source) ?? { inflow: 0, outflow: 0 };
-      src.outflow += edge.operationCount;
-      totals.set(edge.source, src);
-      const dst = totals.get(edge.destination) ?? { inflow: 0, outflow: 0 };
-      dst.inflow += edge.operationCount;
-      totals.set(edge.destination, dst);
-    }
     const rows = nodes.map((node) => ({
       node,
       category: node.category ?? "",
-      ...(totals.get(node.id) ?? { inflow: 0, outflow: 0 }),
+      ...(totalsById.get(node.id) ?? { inflow: 0, outflow: 0 }),
     }));
     const { sortKey, direction } = nodeSort;
     return rows.sort((a, b) => {
@@ -215,7 +291,7 @@ export function FlowDataTable({
       if (cmp === 0) cmp = a.node.id.localeCompare(b.node.id);
       return direction === "asc" ? cmp : -cmp;
     });
-  }, [nodes, edges, nodeSort]);
+  }, [nodes, totalsById, nodeSort]);
 
   if (edges.length === 0) {
     return (
@@ -246,8 +322,8 @@ export function FlowDataTable({
               <SelectableRow
                 key={edge.id}
                 id={edge.id}
-                selected={selectedId === edge.id}
-                onSelect={onSelect}
+                selected={effectiveSelectedId === edge.id}
+                onSelect={effectiveOnSelect}
               >
                 <td className="px-3 py-2 text-zinc-200" title={edge.source}>{sourceLabel}</td>
                 <td className="px-3 py-2 text-zinc-200" title={edge.destination}>{destinationLabel}</td>
@@ -280,8 +356,8 @@ export function FlowDataTable({
                 <SelectableRow
                   key={node.id}
                   id={node.id}
-                  selected={selectedId === node.id}
-                  onSelect={onSelect}
+                  selected={effectiveSelectedId === node.id}
+                  onSelect={effectiveOnSelect}
                 >
                   <td className="px-3 py-2 text-zinc-200">{resolveLabel(node.id)}</td>
                   <td className="px-3 py-2 text-zinc-400">{category || "—"}</td>
