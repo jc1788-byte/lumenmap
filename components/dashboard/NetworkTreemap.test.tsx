@@ -1,7 +1,9 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { getByText } from "@testing-library/dom";
+import { fireEvent, getByRole, getByText } from "@testing-library/dom";
 import { NetworkTreemap } from "./NetworkTreemap";
+
+const { setChartViewMock } = vi.hoisted(() => ({ setChartViewMock: vi.fn() }));
 
 vi.mock("@/components/dashboard/DashboardProvider", () => ({
   useDashboard: () => ({
@@ -79,6 +81,9 @@ vi.mock("@/components/dashboard/DashboardProvider", () => ({
     period: "1d",
     metric: "ops",
     treemapView: "events",
+    chartView: "treemap",
+    setChartView: setChartViewMock,
+    flowViewEnabled: true,
     selectedNode: null,
     setSelectedNode: vi.fn(),
     activeLevelPath: [],
@@ -114,6 +119,32 @@ describe("NetworkTreemap", () => {
 
       const legend = getByText(container, "Soroban");
       expect(legend).toBeTruthy();
+    } finally {
+      root.unmount();
+      document.body.removeChild(container);
+    }
+  });
+
+  it("offers the Flow chart view beside the treemap controls when enabled", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    try {
+      act(() => {
+        root.render(<NetworkTreemap />);
+      });
+
+      expect(
+        getByRole(container, "tab", { name: "Treemap" }).getAttribute(
+          "aria-selected",
+        ),
+      ).toBe("true");
+      const flowTab = getByRole(container, "tab", { name: "Flow" });
+      expect(flowTab.getAttribute("aria-selected")).toBe("false");
+
+      act(() => fireEvent.click(flowTab));
+      expect(setChartViewMock).toHaveBeenCalledWith("flow");
     } finally {
       root.unmount();
       document.body.removeChild(container);

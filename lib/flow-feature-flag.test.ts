@@ -42,15 +42,6 @@ describe("Flow view feature flag", () => {
     );
     assert.equal(
       isFlowViewEnabled({
-        nodeEnv: "test",
-        dataSource: "fixture",
-        envFlag: undefined,
-        queryFlag: "true",
-      }),
-      true,
-    );
-    assert.equal(
-      isFlowViewEnabled({
         nodeEnv: "production",
         dataSource: "fixture",
         envFlag: undefined,
@@ -60,7 +51,16 @@ describe("Flow view feature flag", () => {
     );
   });
 
-  it("does not enable Flow for an unrelated environment or query value", () => {
+  it("ignores the query opt-in in production live mode", () => {
+    assert.equal(
+      isFlowViewEnabled({
+        nodeEnv: "production",
+        dataSource: "live",
+        envFlag: undefined,
+        queryFlag: "true",
+      }),
+      false,
+    );
     assert.equal(
       isFlowViewEnabled({
         nodeEnv: "test",
@@ -70,8 +70,12 @@ describe("Flow view feature flag", () => {
       }),
       false,
     );
+  });
+
+  it("recognises the flow view request param", () => {
     assert.equal(isFlowViewRequested("flow"), true);
     assert.equal(isFlowViewRequested(["flow", "treemap"]), true);
     assert.equal(isFlowViewRequested(["treemap", "flow"]), false);
+    assert.equal(isFlowViewRequested(undefined), false);
   });
 });
