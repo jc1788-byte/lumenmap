@@ -1,10 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import {
-  DashboardProvider,
-  useDashboard,
-} from "@/components/dashboard/DashboardProvider";
+import { useDashboard } from "@/components/dashboard/DashboardProvider";
 import { CategoryShareChart } from "@/components/dashboard/CategoryShareChart";
 import { DetailPanel } from "@/components/dashboard/DetailPanel";
 import { FreshnessIndicator } from "@/components/dashboard/FreshnessIndicator";
@@ -162,9 +159,5 @@ function DashboardContent() {
 }
 
 export function DashboardPage() {
-  return (
-    <DashboardProvider>
-      <DashboardContent />
-    </DashboardProvider>
-  );
+  return <DashboardContent />;
 }
