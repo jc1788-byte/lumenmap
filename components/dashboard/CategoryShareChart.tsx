@@ -118,7 +118,7 @@ function CategoryShareTooltip({
 }
 
 export function CategoryShareChart() {
-  const { period } = useDashboard();
+  const { period, isError: activityError } = useDashboard();
   const [mode, setMode] = useState<CategoryShareMode>("percentage");
 
   const query = useQuery({
@@ -195,6 +195,15 @@ export function CategoryShareChart() {
             {" · "}
             partial buckets marked on the axis
           </p>
+          {activityError ? (
+            <p
+              data-testid="category-share-independent"
+              className="text-xs text-amber-300"
+            >
+              Network activity failed to load, but this chart uses a separate
+              request and is still live.
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button

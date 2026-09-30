@@ -1,11 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
 import { CATEGORY_COLORS, TREEMAP_VIEWS } from "@/lib/constants";
 import { PERIOD_OPTIONS } from "@/lib/periods";
 import { PATTERN_DEFS, PATTERN_OPACITY, getCategoryPatternId } from "@/lib/treemap-patterns";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
+import {
+  ActivityRetryButton,
+  ActivityUnavailableNote,
+} from "@/components/dashboard/ActivityErrorState";
 import { D3Treemap } from "@/components/dashboard/D3Treemap";
 import { TreemapDataTable } from "@/components/dashboard/TreemapDataTable";
 import { resolveActiveLevel } from "@/lib/entities/treemap-level";
@@ -85,9 +88,7 @@ export function NetworkTreemap() {
     data,
     isLoading,
     isError,
-    isFetching,
     error,
-    refetch,
     period,
     treemapView,
     metric,
@@ -96,11 +97,9 @@ export function NetworkTreemap() {
     activeLevelPath,
     setActiveLevelPath,
   } = useDashboard();
-  const [isRetrying, setIsRetrying] = useState(false);
   const [excludedCategories, setExcludedCategories] = useState<Set<string>>(
     new Set(),
   );
-  const retryPending = isRetrying || isFetching;
 
   const toggleCategory = (key: string) => {
     setExcludedCategories((prev) => {
@@ -112,18 +111,6 @@ export function NetworkTreemap() {
   };
 
   const resetFilters = () => setExcludedCategories(new Set());
-
-  const handleRetry = async () => {
-    if (retryPending) {
-      return;
-    }
-    setIsRetrying(true);
-    try {
-      await refetch();
-    } finally {
-      setIsRetrying(false);
-    }
-  };
 
   const activePayload = data
     ? metric === "protocol_tvl"
@@ -282,28 +269,15 @@ export function NetworkTreemap() {
             <Skeleton className="h-full w-full rounded-lg" />
           </div>
         ) : isError || !data || !activeTreemap || !filteredTreemap ? (
-          <div className="flex h-[420px] flex-col items-center justify-center gap-4 rounded-xl border border-red-500/20 bg-red-500/5 p-6 text-center text-sm text-red-200 sm:h-[520px] lg:h-[600px]">
-            <p role="alert">{error?.message ?? "Unable to load treemap data."}</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleRetry}
-              disabled={retryPending}
-              aria-busy={retryPending}
-              aria-label={
-                retryPending
-                  ? "Retrying network activity data"
-                  : "Retry loading network activity data"
-              }
-              className="gap-2 border-red-500/30 text-red-100 hover:bg-red-500/10"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${retryPending ? "animate-spin" : ""}`}
-                aria-hidden="true"
-              />
-              {retryPending ? "Retrying…" : "Retry"}
-            </Button>
+          <div
+            data-testid="treemap-error"
+            className="flex h-[420px] flex-col items-center justify-center gap-4 rounded-xl border border-red-500/20 bg-red-500/5 p-6 text-center text-sm text-red-200 sm:h-[520px] lg:h-[600px]"
+          >
+            <p role="alert">
+              {error?.message ?? "Unable to load treemap data."}
+            </p>
+            <ActivityUnavailableNote className="max-w-md text-center" />
+            <ActivityRetryButton testId="treemap-retry" />
           </div>
         ) : (
           <div key={`${period}-${treemapView}-${metric}-${excludedCategories.size}`} className={CHART_FRAME_CLASS}>
