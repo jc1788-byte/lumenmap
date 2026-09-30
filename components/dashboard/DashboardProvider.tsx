@@ -62,6 +62,9 @@ interface DashboardContextValue {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   selectSearchResult: (result: SearchResult) => void;
+  /** Flow view state */
+  flowView: "graph" | "table";
+  setFlowView: (view: "graph" | "table") => void;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -163,7 +166,7 @@ export function DashboardProvider({
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [activeLevelPath, setActiveLevelPath] = useState<TreemapNode[]>([]);
   const [focusRequest, setFocusRequest] = useState<SearchResult | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [flowView, setFlowViewState] = useState<"graph" | "table">("graph");
   const pendingPathSegments = useRef<string[] | null>(null);
   const [urlReady, setUrlReady] = useState(false);
 
@@ -343,6 +346,8 @@ export function DashboardProvider({
       searchQuery,
       setSearchQuery,
       selectSearchResult,
+      flowView,
+      setFlowView: setFlowViewState,
     }),
     [
       visualization,
@@ -373,6 +378,7 @@ export function DashboardProvider({
       focusRequest,
       searchQuery,
       selectSearchResult,
+      flowView,
     ],
   );
 
