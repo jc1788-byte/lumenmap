@@ -3,6 +3,10 @@
 import { Activity, ArrowDown, Boxes, Layers, Wallet, Zap } from "lucide-react";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
 import { Sparkline } from "@/components/dashboard/Sparkline";
+import {
+  ActivityRetryButton,
+  ActivityUnavailableNote,
+} from "@/components/dashboard/ActivityErrorState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetricInfo } from "@/components/metrics/MetricInfo";
@@ -47,8 +51,29 @@ const KPI_CONFIG = [
 ];
 
 export function KpiCards() {
-  const { data, isLoading } = useDashboard();
+  const { data, isLoading, isError } = useDashboard();
   const freshnessState = classifyFreshness(data?.sourceTimestamp);
+
+  // A failed shared activity request must read as an explicit error, not as
+  // permanent skeletons that hide why the KPIs are missing.
+  if (isError && !data) {
+    return (
+      <div
+        role="alert"
+        data-testid="kpi-error"
+        className="flex flex-col gap-3 rounded-xl border border-red-500/20 bg-red-500/5 p-5 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-red-100">
+            KPI cards unavailable
+          </p>
+          <ActivityUnavailableNote />
+        </div>
+        <ActivityRetryButton testId="kpi-retry" className="shrink-0" />
+      </div>
+    );
+  }
+
   if (isLoading || !data) {
     return (
       <div

@@ -6,6 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
+import {
+  ActivityRetryButton,
+  ActivityUnavailableNote,
+} from "@/components/dashboard/ActivityErrorState";
 import { formatNumber } from "@/lib/utils";
 import { getErrorCopy } from "@/lib/error-copy";
 
@@ -136,11 +140,14 @@ export function TimeSeriesChart() {
     const hint = errorCopy?.hint;
 
     return (
-      <Card className="border-red-950/40 bg-zinc-900/50 backdrop-blur-sm">
+      <Card
+        data-testid="timeseries-error"
+        className="border-red-950/40 bg-zinc-900/50 backdrop-blur-sm"
+      >
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="flex items-center gap-2 text-base font-medium text-red-400">
             <AlertTriangle className="h-5 w-5 text-red-400" />
-            {title}
+            Time series unavailable
           </CardTitle>
           {errorCopy?.showRetry && (
             <Button
@@ -160,9 +167,14 @@ export function TimeSeriesChart() {
             </Button>
           )}
         </CardHeader>
-        <CardContent className="py-6">
-          <p className="text-sm text-zinc-400">{message}</p>
-          {hint && <p className="mt-2 text-xs text-zinc-500">{hint}</p>}
+        <CardContent className="space-y-3 py-6">
+          <p className="text-sm text-zinc-400">
+            {error instanceof Error
+              ? error.message
+              : "Unable to load time-series activity charts from Hubble BigQuery."}
+          </p>
+          <ActivityUnavailableNote />
+          <ActivityRetryButton testId="timeseries-retry" />
         </CardContent>
       </Card>
     );
