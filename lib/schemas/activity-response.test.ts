@@ -46,6 +46,29 @@ describe("activity response schema", () => {
     assert.equal(validated.metricProvenance.operation_count.metric, "operation_count");
   });
 
+  it("accepts unavailable destination KPI shapes", () => {
+    const nullMetric = cloneValidFixture();
+    nullMetric.kpis.activeDestinationAccounts = null;
+    assert.equal(
+      validateActivityResponse(nullMetric).kpis.activeDestinationAccounts,
+      null,
+    );
+
+    const nullValue = cloneValidFixture();
+    nullValue.kpis.activeDestinationAccounts!.value = null;
+    assert.equal(
+      validateActivityResponse(nullValue).kpis.activeDestinationAccounts?.value,
+      null,
+    );
+
+    const missingValue = cloneValidFixture();
+    delete missingValue.kpis.activeDestinationAccounts;
+    assert.equal(
+      validateActivityResponse(missingValue).kpis.activeDestinationAccounts,
+      undefined,
+    );
+  });
+
   it("rejects NaN numeric values", () => {
     const fixture = cloneValidFixture();
     fixture.kpis.totalOps.value = Number.NaN;
