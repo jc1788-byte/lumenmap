@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { TOP_CONTRACT_LIMIT } from "@/lib/constants";
-import { mapActiveContractCountRow } from "./queries";
+import { mapAccountCounterpartyRows, mapActiveContractCountRow } from "./queries";
 
 describe("mapActiveContractCountRow", () => {
   test("counts each duplicate contract ID once", () => {
@@ -46,5 +46,81 @@ describe("mapActiveContractCountRow", () => {
     assert.deepEqual(mapActiveContractCountRow(rows), {
       active_contract_count: contractCount,
     });
+  });
+});
+
+describe("mapAccountCounterpartyRows", () => {
+  test("maps inbound and outbound rows with stable ordering and aliases", () => {
+    const gbbb = `G${"B".repeat(55)}`;
+    const gaaa = `G${"A".repeat(55)}`;
+    const gccc = `G${"C".repeat(55)}`;
+    const rows = [
+      {
+        counterparty: gbbb,
+        direction: "out",
+        asset_type: "native",
+        asset_code: "XLM",
+        asset_issuer: null,
+        amount: "15.5",
+        op_count: 3,
+      },
+      {
+        counterparty_account: gaaa,
+        direction: "in",
+        asset_type: "credit_alphanum4",
+        asset_code: "USDC",
+        asset_issuer: "GISSUER",
+        amount: "27.25",
+        op_count: 5,
+      },
+      {
+        counterparty: gccc,
+        direction: "out",
+        asset_type: "credit_alphanum4",
+        asset_code: "USDC",
+        asset_issuer: "GISSUER",
+        amount: "27.25",
+        op_count: 5,
+      },
+    ];
+
+    const mapped = mapAccountCounterpartyRows(rows);
+
+    assert.deepEqual(
+      mapped.map(({ counterparty, direction, amount, op_count }) => ({
+        counterparty,
+        direction,
+        amount,
+        op_count,
+      })),
+      [
+        { counterparty: gaaa, direction: "in", amount: "27.25", op_count: 5 },
+        { counterparty: gccc, direction: "out", amount: "27.25", op_count: 5 },
+        { counterparty: gbbb, direction: "out", amount: "15.5", op_count: 3 },
+      ],
+    );
+
+    assert.equal(mapped[0].counterparty_account, gaaa);
+    assert.deepEqual(mapped[0].asset, {
+      type: "issued",
+      code: "USDC",
+      issuer: "GISSUER",
+    });
+  });
+
+  test("omits invalid or empty counterparties and leaves self-payments to the caller", () => {
+    const gaaa = `G${"A".repeat(55)}`;
+    const gccc = `G${"C".repeat(55)}`;
+    const rows = [
+      { counterparty: gaaa, direction: "in", asset_type: "native", amount: "10", op_count: 1 },
+      { counterparty: "", direction: "out", asset_type: "native", amount: "2", op_count: 2 },
+      { counterparty: "MALFORMED", direction: "out", asset_type: "native", amount: "3", op_count: 3 },
+      { counterparty: gccc, direction: "in", asset_type: "native", amount: "4", op_count: 4 },
+    ];
+
+    assert.deepEqual(
+      mapAccountCounterpartyRows(rows).map(({ counterparty }) => counterparty),
+      [gccc, gaaa],
+    );
   });
 });

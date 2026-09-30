@@ -238,6 +238,20 @@ export interface NativePaymentVolume {
   unit: "XLM";
 }
 
+export type AccountCounterpartyDirection = "in" | "out" | "both";
+
+export interface AccountCounterpartyRow {
+  counterparty: string;
+  counterparty_account: string;
+  direction: AccountCounterpartyDirection;
+  asset: AssetIdentity;
+  asset_type?: string;
+  asset_code?: string | null;
+  asset_issuer?: string | null;
+  amount: string;
+  op_count: number;
+}
+
 export interface AssetPaymentVolumeRow {
   asset: AssetIdentity;
   amount: string;

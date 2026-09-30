@@ -1,14 +1,15 @@
 import {
-  assetPaymentVolumeQuery,
-  ACCOUNT_QUERY_TYPES,
-  DESTINATION_QUERY_TYPES,
+  accountCounterpartyQuery,
   accountMetadataQuery,
   accountQuery,
   activeContractCountQuery,
   activeDestinationCountQuery,
   activeSourceAccountsQuery,
+  assetPaymentVolumeQuery,
+  ACCOUNT_QUERY_TYPES,
   categoryQuery,
   contractQuery,
+  DESTINATION_QUERY_TYPES,
   heatmapQuery,
   latestDataTimestampQuery,
   nativePaymentVolumeQuery,
@@ -16,9 +17,10 @@ import {
   sorobanFunctionContractQuery,
   sorobanFunctionQuery,
   transactionCategoryQuery,
-  usdcPaymentVolumeQuery,
-  usdcCategoryQuery,
+  TOP_ACCOUNT_COUNTERPARTIES,
   usdcAccountQuery,
+  usdcCategoryQuery,
+  usdcPaymentVolumeQuery,
 } from "./shared-queries.mjs";
 import { SUPPORTED_USDC_ASSET_SET } from "@/lib/assets/usdc";
 import type {
@@ -39,12 +41,15 @@ import type {
   UsdcPaymentVolumeAssetRow,
   TimeseriesRawRow,
   HeatmapRawRow,
+  AccountCounterpartyDirection,
+  AccountCounterpartyRow,
 } from "@/lib/types";
 
 export {
   assetPaymentVolumeQuery,
   ACCOUNT_QUERY_TYPES,
   DESTINATION_QUERY_TYPES,
+  accountCounterpartyQuery,
   accountMetadataQuery,
   accountQuery,
   activeContractCountQuery,
@@ -63,6 +68,7 @@ export {
   usdcCategoryQuery,
   usdcAccountQuery,
   TOP_ACCOUNTS_PER_TYPE,
+  TOP_ACCOUNT_COUNTERPARTIES,
   TOP_CONTRACT_LIMIT,
   TOP_CONTRACTS_PER_FUNCTION,
   TOP_SOROBAN_FUNCTIONS,
@@ -158,6 +164,79 @@ export type RawQueryResults = {
   usdcAccounts: UsdcAccountRow[];
   heatmap: HeatmapRawRow[];
 };
+
+export function mapAccountCounterpartyRows(
+  rows: Record<string, unknown>[],
+): AccountCounterpartyRow[] {
+  const mapped = rows
+    .map((row) => {
+      const counterparty =
+        typeof row.counterparty === "string"
+          ? row.counterparty.trim()
+          : typeof row.counterparty_account === "string"
+            ? row.counterparty_account.trim()
+            : "";
+
+      if (!counterparty || counterparty.length !== 56 || !counterparty.startsWith("G")) {
+        return null;
+      }
+
+      const assetType = String(row.asset_type ?? "native");
+      const assetCode =
+        typeof row.asset_code === "string" && row.asset_code.trim() !== ""
+          ? row.asset_code.trim()
+          : assetType === "native"
+            ? "XLM"
+            : "";
+      const assetIssuer =
+        typeof row.asset_issuer === "string" && row.asset_issuer.trim() !== ""
+          ? row.asset_issuer.trim()
+          : undefined;
+
+      const direction =
+        typeof row.direction === "string"
+          ? (row.direction.toLowerCase() as AccountCounterpartyDirection)
+          : "both";
+
+      const base = {
+        counterparty,
+        counterparty_account: counterparty,
+        direction:
+          direction === "in" || direction === "out" || direction === "both"
+            ? direction
+            : "both",
+        asset:
+          assetType === "native"
+            ? ({ type: "native", code: "XLM" } as const)
+            : ({
+                type: "issued",
+                code: assetCode || "UNKNOWN",
+                issuer: assetIssuer || "",
+              } as const),
+        asset_type: assetType,
+        asset_code: assetCode || null,
+        asset_issuer: assetIssuer || null,
+        amount: String(row.amount ?? "0"),
+        op_count: Number(row.op_count ?? 0),
+      };
+
+      return base;
+    })
+    .filter((row): row is AccountCounterpartyRow => row !== null)
+    .sort((a, b) => {
+      if (b.op_count !== a.op_count) {
+        return b.op_count - a.op_count;
+      }
+      const amountDifference = Number(b.amount) - Number(a.amount);
+      if (amountDifference !== 0) {
+        return amountDifference;
+      }
+      return a.counterparty.localeCompare(b.counterparty);
+    })
+    .slice(0, TOP_ACCOUNT_COUNTERPARTIES);
+
+  return mapped;
+}
 
 export function mapAssetPaymentVolumeRows(
   rows: Record<string, unknown>[],
