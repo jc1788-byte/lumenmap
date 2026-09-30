@@ -107,3 +107,61 @@ describe("FlowViewToggle", () => {
     expect(onChange).toHaveBeenCalledWith("table");
   });
 });
+
+describe("FlowDataTable async states", () => {
+  it("renders skeletons with aria-busy when loading", () => {
+    act(() => root.render(<FlowDataTable nodes={nodes} edges={edges} isLoading />));
+
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(container.querySelector("table")).toBeNull();
+  });
+
+  it("renders an alert with retry that fires onRetry once", () => {
+    const onRetry = vi.fn();
+    act(() =>
+      root.render(
+        <FlowDataTable nodes={nodes} edges={edges} isError onRetry={onRetry} errorMessage="Flow request failed" />,
+      ),
+    );
+
+    expect(getByRole(container, "alert").textContent).toContain("Flow request failed");
+    const retry = getByRole(container, "button", { name: /retry loading flow data/i });
+    act(() => {
+      fireEvent.click(retry);
+    });
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("guards double-clicks while retryPending", () => {
+    const onRetry = vi.fn();
+    act(() =>
+      root.render(
+        <FlowDataTable nodes={nodes} edges={edges} isError onRetry={onRetry} retryPending />,
+      ),
+    );
+
+    const retry = getByRole(container, "button", { name: /retrying flow data/i });
+    expect(retry.hasAttribute("disabled")).toBe(true);
+    act(() => {
+      fireEvent.click(retry);
+      fireEvent.click(retry);
+    });
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
+  it("renders a polite status when there are no edges", () => {
+    act(() => root.render(<FlowDataTable nodes={[]} edges={[]} />));
+
+    const status = getByRole(container, "status");
+    expect(status.textContent).toContain("No flow edges to display.");
+    expect(status.getAttribute("aria-live")).toBe("polite");
+  });
+
+  it("renders a nodes-empty status when showNodes has no nodes", () => {
+    act(() => root.render(<FlowDataTable nodes={[]} edges={edges} showNodes />));
+
+    const statuses = getAllByRole(container, "status");
+    expect(statuses.some((s) => s.textContent?.includes("No flow nodes to display."))).toBe(true);
+    expect(statuses.every((s) => s.getAttribute("aria-live") === "polite")).toBe(true);
+  });
+});
