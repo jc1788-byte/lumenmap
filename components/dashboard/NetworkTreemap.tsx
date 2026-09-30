@@ -1,5 +1,7 @@
 "use client";
 
+import { FlowView } from "@/components/dashboard/FlowView";
+
 import { useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { CATEGORY_COLORS, TREEMAP_VIEWS } from "@/lib/constants";
@@ -134,7 +136,7 @@ export function NetworkTreemap() {
         ? data.treemaps[`usdc_${treemapView}` as keyof typeof data.treemaps]
         : metric === "transactions"
           ? data.treemaps[`txn_${treemapView}` as keyof typeof data.treemaps]
-          : data.treemaps[treemapView]
+          : (treemapView === "flow" ? undefined : data.treemaps[treemapView as "events" | "actors"])
     : null;
   const activeTreemap = activePayload ? toChartNode(activePayload) : null;
   const isEmpty =
@@ -167,6 +169,10 @@ export function NetworkTreemap() {
           : metric === "protocol_tvl"
             ? "protocol TVL"
             : "operations";
+
+  if (treemapView === "flow") {
+    return <FlowView />;
+  }
 
   return (
     <Card aria-busy={isLoading || undefined}>

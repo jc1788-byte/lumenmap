@@ -92,7 +92,7 @@ function selectedNodeFromSearch(
   data: ActivityVisualizationResponse | undefined,
   result: SearchResult,
 ): SelectedNode {
-  const root = data?.treemaps[result.treemapView] as
+  const root = (result.treemapView === "flow" ? undefined : data?.treemaps[result.treemapView as "events" | "actors"]) as
     TreemapNode<number | string> | undefined;
   if (root) {
     const path = findTreemapPath(root, result);
@@ -124,7 +124,7 @@ function activeTreemapRoot(
   treemapView: TreemapViewId,
   metric: DashboardMetricId,
 ): TreemapNode | null {
-  if (!data) return null;
+  if (!data || treemapView === "flow") return null;
   const payload =
     metric === "protocol_tvl"
       ? data.treemaps.protocol_tvl
