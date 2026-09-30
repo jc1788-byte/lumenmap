@@ -1,10 +1,18 @@
 /**
- * Illustrative fixture dataset for opt-in local/e2e mode (LUMENMAP_DATA_SOURCE=fixture).
+ * Illustrative fixture dataset for opt-in local/e2e mode (LuMENMAP DATA_SOURCE=fixture).
  * Values do not reflect real network state and must never be selected silently in production.
  */
 
 import { buildActivityMetricProvenance } from "@/lib/metrics/provenance";
-import type { ActivityDataset, Period, HeatmapBucket } from "@/lib/types";
+import type {
+  ActivityDataset,
+  Period,
+  HeatmapBucket,
+  FlowNode,
+  FlowEdge,
+  FlowGraphResponse,
+  RawFlowEdgeRow,
+} from "@/lib/types";
 
 export function buildFixtureDataset(period: Period = "1d"): ActivityDataset {
   const heatmapBuckets: HeatmapBucket[] = [];
@@ -67,13 +75,13 @@ export function buildFixtureDataset(period: Period = "1d"): ActivityDataset {
     ],
     accounts: [
       {
-        account_id: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+        account_id: "GA5ZSEJYB37JRC5AVCIA5MOP4RhTM335X2KGX3IHOJAPP5RE34K4KZVN",
         type_string: "payment",
         op_count: 42000,
         xlm_volume: 12000,
       },
       {
-        account_id: "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNKNLXLTCV",
+        account_id: "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJJ5IAJTGKIN2EX7LBNKNLXLTCV",
         type_string: "payment",
         op_count: 18000,
         xlm_volume: 4500,
@@ -122,7 +130,7 @@ export function buildFixtureDataset(period: Period = "1d"): ActivityDataset {
         asset: {
           type: "issued",
           code: "USDC",
-          issuer: "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNKNLXLTCV",
+          issuer: "GAAZI4TCRCTY5OJHCTJC2A4QSY6CJWJJ5IAJTGKIN2EX7LBNKNLXLTCV",
         },
         amount: "9200",
         opCount: 3100,
@@ -134,7 +142,7 @@ export function buildFixtureDataset(period: Period = "1d"): ActivityDataset {
     ],
     usdcAccounts: [
       {
-        account_id: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+        account_id: "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJJ5IAJTGKIN2EX7LBNKNLXLTCV",
         type_string: "payment",
         amount: 80000,
       },
@@ -226,13 +234,13 @@ export function buildFixtureDataset(period: Period = "1d"): ActivityDataset {
             },
             children: [
               {
-                name: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+                name: "GA5ZSEJYB37JRC5AVCIA5MOP4RhTM335X2KGX3IHOJAPP5RE34K4KZVN",
                 value: 42000,
                 meta: {
                   type: "entity",
                   category: "payments",
                   opCount: 42000,
-                  id: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+                  id: "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJJ5IAJTGKIN2EX7LBNKNLXLTCV",
                 },
               },
             ],
@@ -336,7 +344,7 @@ export function buildFixtureDataset(period: Period = "1d"): ActivityDataset {
           asset: {
             type: "issued",
             code: "USDC",
-            issuer: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            issuer: "GA5ZSEJYB37JRC5AVCIA5MOP4RhTM335X2KGX3IHOJAPP5RE34K4KZVN",
           },
         },
       },
@@ -361,3 +369,140 @@ export function buildFixtureDataset(period: Period = "1d"): ActivityDataset {
 
 /** @deprecated Prefer buildFixtureDataset(period); kept for CONTRIBUTING references. */
 export const fixtureResponse = buildFixtureDataset("1d");
+
+// -----------------------------------------------------------------------------
+// Flow graph fixture dataset
+// -----------------------------------------------------------------------------
+
+export const FLOW_FIXTURE_ASSET_KEYS: ReadonlyArray<string> = [
+  "native:XLM",
+  "issued:USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RhTM335X2KGX3IHOJAPP5RE34K4KZVN",
+];
+
+/**
+ * Raw edge rows as they would arrive from BigQuery (denormalized, one row per transfer).
+ * These are deliberately not deduped and include parallel edges between the same pair.
+ */
+export const FLOW_FIXRURE_RAW_EDGES = [
+  {
+    from: "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJJ5IAJTGKIN2EX7LBNKNLXLTCV",
+    to: "GA5ZSEJYB37JRC5AVCIA5MOP4RhTM335X2KGX3IHOJAPP5RE34K4KZVN",
+    assetKey: "native:XLM",
+    opCount: 12000,
+    xlmVolume: "12000",
+  },
+  {
+    from: "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJJ5IAJTGKIN2EX7LBNKNLXLTCV",
+    to: "GA5ZSEJYB37JRC5AVCIA5MOP4RhTM335X2KGX3IHOJAPP5RE34K4KZVN",
+    assetKey: "native:XLM",
+    opCount: 8000,
+    xlmVolume: "8000",
+  },
+  {
+    from: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+    to: "CA4HEQTL2WPEUYYKYKCDOHCDNIV4QHNJ7EL4J4NQ6VADP7SYHVRYZ7AW2",
+    assetKey: "issued:USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPR5RE34K4KZVN",
+    opCount: 42000,
+    xlmVolume: "0",
+  },
+  {
+    from: "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJJ5IAJTGKIN2EX7LBNKNLXLTCV",
+    to: "CA2TZIB56KYKD46F7IFBF6XPO5TDNK6N2U6BRTGZ5AF4WUSBN6BKZMGF",
+    assetKey: "issued:USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPR5RE34K4KZVN",
+    opCount: 18000,
+    xlmVolume: "0",
+  },
+  {
+    from: "GA5ZSEJYB37JRC5AVCIA5MOP4RhTM335X2KGX3IHOJAPP5RE34K4KZVN",
+    to: "CA2TZIB56KYKD46F7IFBF6XPO5TDNK6N2U6BRTGZ5AF4WUSBN6BKZMGF",
+    assetKey: "issued:USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPR5RE34K4KZVN",
+    opCount: 62000,
+    xlmVolume: "0",
+  },
+  {
+    from: "CA2TZIB56KYKD46F7IFBF6XPO5TDNK6N2U6BRTGZ5AF4WUSBN6BKZMGF",
+    to: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+    assetKey: "native:XLM",
+    opCount: 95000,
+    xlmVolume: "95000",
+  },
+  {
+    from: "GA5ZSEJYB37JRC5AVCIA5MOP4RhTM335X2KGX3IHOJAPP5RE34K4KZVN",
+    to: "GAAZI4TCRCTY5OJHCTJC2A4QSY6CJWJJ5IAJTGKIN2EX7LBNKNLXLTCV",
+    assetKey: "native:XLM",
+    opCount: 4500,
+    xlmVolume: "4500",
+  },
+  {
+    from: "CA4HEQTL2WPEUYYKYKCDOHCDNIV4QHNJ7EL4J4NQ6VADP7SYHVRYZ7AW2",
+    to: "CA2TZIB56KYKD46F7IFBF6XPO5TDNK6N2U6BRTGZ5AF4WUSBN6BKZMGF",
+    assetKey: "issued:USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RhTM335X2KGX3IHOJAPP5RE34K4KZVN",
+    opCount: 3100,
+    xlmVolume: "0",
+  },
+] as const satisfies ReadonlyArray<RawFlowEdgeRow>;
+
+/**
+ * Build a typed FlowGraphResponse from raw edge rows.
+ *
+ * Rules (matching the Flow ADR):
+ * - Nodes are deduped by id (account ID or contract ID).
+ * - Parallel edges between the same (from, to, assetKey) triple are aggregated
+ *    by summing opCount and xlmVolume.
+ * - Node labels default to the node id and are overridable via the optional
+ *    labels map.
+ */
+export function buildFlowGraph(
+  rows: ReadonlyArray<RawFlowEdgeRow>,
+  options: {
+    labels?: ReadonlyMap<string, string> | { get(key: string): string | undefined };
+  } = {},
+}: FlowGraphResponse {
+  const nodes = new Map<string, FlowNode>();
+  const edges = new Map<string, FlowEdge>();
+
+  const labelFor = (id: string): string => {
+    const explicit = options.labels?.get(id);
+    return explicit ?? id;
+  };
+
+  const ensureNode = (id: string): void => {
+    if (!nodes.has(id)) {
+      nodes.set(id, { id, label: labelFor(id), metrics: {} });
+    }
+  };
+
+  for (const row of rows) {
+    ensureNode(row.from);
+    ensureNode(row.to);
+
+    const key = `${row.from}\u0000${row.to}\u0000${row.assetKey}`;
+    const existing = edges.get(key);
+    if (existing) {
+      existing.metrics.opCount += row.opCount;
+      existing.metrics.xlmVolume = (
+        Number(existing.metrics.xlmVolume ?? "0") + Number(row.xlmVolume ?? "0")
+      ).toString();
+    } else {
+      edges.set(key, {
+        id: key,
+        from: row.from,
+        to: row.to,
+        assetKey: row.assetKey,
+        metrics: {
+          opCount: row.opCount,
+          xlmVolume: row.xlmVolume,
+        },
+      });
+    }
+  }
+
+  return {
+    nodes: Array.from(nodes.values()),
+    edges: Array.from(edges.values()),
+  };
+}
+
+export function buildFixtureFlowGraph(): FlowGraphResponse {
+  return buildFlowGraph(FLOW_FIXTURE_RAW_EDGES);
+}
