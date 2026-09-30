@@ -1,4 +1,8 @@
-import { buildAllTreemaps, buildKpis } from "@/lib/entities/build-treemap";
+import {
+  buildAllTreemaps,
+  buildKpis,
+  buildProtocolSummary,
+} from "@/lib/entities/build-treemap";
 import { getFixtureRawActivity } from "@/lib/fixtures/raw-data";
 import {
   getFixtureActiveDestinationCount,
@@ -51,6 +55,7 @@ export function getFixtureActivityData(
       getFixtureActiveDestinationCount(period),
     ),
     treemaps: buildAllTreemaps(raw),
+    protocols: buildProtocolSummary(raw.accounts, raw.contracts),
     usdcPaymentVolume: {
       amount: 0,
       unit: "USDC",
