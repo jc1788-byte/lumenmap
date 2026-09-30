@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, RefreshCw } from "lucide-react";
-import { cn, formatExactNumber, truncateAddress } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { cn, formatExactNumber, formatPercent, truncateAddress } from "@/lib/utils";
+import {
+  FLOW_METHODOLOGY_ANCHORS,
+  flowMethodologyHref,
+} from "@/lib/metrics/flow-methodology-anchors";
 
 /**
  * Minimal structural shapes of the Flow graph model. They are intentionally a
@@ -31,48 +33,73 @@ export interface FlowTableEdge {
   operationCount: number;
 }
 
-export interface FlowNodeMetrics {
-  inflowOps: number;
-  outflowOps: number;
+/** Period totals the Flow API reports alongside a top-N edge sample. */
+export interface FlowCoverageTotals {
+  totalEdges: number;
+  totalOperations: number;
+  configuredLimit: number;
+}
+
+export interface FlowCoverage {
+  returnedEdges: number;
+  totalEdges: number;
+  returnedOperations: number;
+  totalOperations: number;
+  coveragePercent: number;
+  sampled: boolean;
+  configuredLimit: number;
 }
 
 /**
- * Maps a Flow node to the shared `SelectedNode` entity context consumed by
- * `DetailPanel` (same shape treemap selection uses): label as name,
- * address as `meta.id`, category as category/protocol, and summed
- * in/out operation counts as the value. Strictly conforms to
- * `SelectedNode` / `TreemapNodeMeta` in `lib/types.ts`.
+ * Build top-N sampling coverage for returned Flow edges: returned vs total
+ * edges plus operations-weighted coverage percent (same zero-parent rule as
+ * the treemap `buildCoverage`). Returns undefined when there are no edges.
  */
-export function flowTableNodeToSelectedNode(
-  node: FlowTableNode,
-  metrics: FlowNodeMetrics,
-): SelectedNode {
-  const opCount = metrics.inflowOps + metrics.outflowOps;
+export function buildFlowCoverage(
+  edges: readonly FlowTableEdge[],
+  totals: FlowCoverageTotals,
+): FlowCoverage | undefined {
+  if (edges.length === 0) {
+    return undefined;
+  }
+  const returnedOperations = edges.reduce(
+    (sum, edge) => sum + edge.operationCount,
+    0,
+  );
   return {
-    name: node.label,
-    value: opCount,
-    share: 0,
-    meta: {
-      type: "account",
-      id: node.id,
-      nodeId: node.id,
-      category: node.category ?? "account",
-      protocol: node.category,
-      opCount,
-    },
+    returnedEdges: edges.length,
+    totalEdges: totals.totalEdges,
+    returnedOperations,
+    totalOperations: totals.totalOperations,
+    coveragePercent:
+      totals.totalOperations > 0
+        ? (returnedOperations / totals.totalOperations) * 100
+        : 0,
+    sampled: edges.length < totals.totalEdges,
+    configuredLimit: totals.configuredLimit,
   };
 }
 
 /**
- * Returns the dashboard context when rendered inside `DashboardProvider`,
- * else null so the table stays usable standalone (e.g. existing unit tests).
+ * Honesty badge for top-N sampled Flow graphs. Rendered whenever coverage
+ * is below 100% so absences read as "not in the sample", not "no activity".
  */
-function useOptionalDashboard() {
-  try {
-    return useDashboard();
-  } catch {
-    return null;
-  }
+export function FlowCoverageBadge({ coverage }: { coverage: FlowCoverage }) {
+  return (
+    <p className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-amber-800/70 bg-amber-950/40 px-3 py-1.5 text-xs text-amber-100">
+      <span>
+        Sampled · top {formatExactNumber(coverage.configuredLimit)} of{" "}
+        {formatExactNumber(coverage.totalEdges)} edges ·{" "}
+        {formatPercent(coverage.coveragePercent)} of operations
+      </span>
+      <a
+        href={flowMethodologyHref(FLOW_METHODOLOGY_ANCHORS.sampling)}
+        className="font-medium underline hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"
+      >
+        Methodology
+      </a>
+    </p>
+  );
 }
 
 type SortDirection = "asc" | "desc";
@@ -192,16 +219,8 @@ export interface FlowDataTableProps {
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   caption?: string;
-  /** Renders table-shaped loading skeletons instead of data. */
-  isLoading?: boolean;
-  /** Renders the error panel with retry instead of data. */
-  isError?: boolean;
-  /** Error copy shown in the error panel. */
-  errorMessage?: string;
-  /** Refetch trigger invoked by the retry button. */
-  onRetry?: () => void | Promise<void>;
-  /** Disables the retry button while a refetch is in flight. */
-  retryPending?: boolean;
+  /** Top-N sampling coverage; badge renders only when coverage is below 100%. */
+  coverage?: FlowCoverage | null;
 }
 
 const HEADER_CELL =
@@ -366,11 +385,7 @@ export function FlowDataTable({
   selectedId = null,
   onSelect,
   caption = "Flow graph edges",
-  isLoading = false,
-  isError = false,
-  errorMessage = "Unable to load flow data.",
-  onRetry,
-  retryPending = false,
+  coverage = null,
 }: FlowDataTableProps) {
   const edgeSort = useSort<EdgeSortKey>("amount");
   const nodeSort = useSort<NodeSortKey>("outflow");
@@ -549,14 +564,10 @@ export function FlowDataTable({
 
   return (
     <div className="space-y-4">
-      {!hideExport && (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-          <p className="text-xs text-zinc-400">
-            {caption} ({formatExactNumber(edges.length)} edges)
-          </p>
-          <FlowExportButton edges={edges} period={period} />
-        </div>
-      )}
+      {coverage &&
+      (coverage.sampled || coverage.coveragePercent < 100) ? (
+        <FlowCoverageBadge coverage={coverage} />
+      ) : null}
       <div className="overflow-x-auto rounded-xl border border-white/5 bg-black/20">
         <table className="w-full min-w-[36rem] border-collapse text-sm">
           <caption className="px-3 py-2 text-left texe-xs text-zinc-500">
