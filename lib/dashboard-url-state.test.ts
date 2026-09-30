@@ -109,49 +109,75 @@ describe("dashboard URL state", () => {
     assert.equal(parseDashboardUrlSearch(search).comparePeriod, "7d");
   });
 
-  it("validates known chart views only", () => {
-    assert.equal(isValidChartView("treemap"), true);
-    assert.equal(isValidChartView("flow"), true);
-    assert.equal(isValidChartView("events"), false);
-    assert.equal(isValidChartView(null), false);
-  });
+  it("parses and writes flow mode from URL", () => {
+    const parsed = parseDashboardUrlSearch("?flowMode=table");
+    assert.equal(parsed.flowMode, "table");
 
-  it("parses `view=flow` as the Flow chart view", () => {
-    const parsed = parseDashboardUrlSearch("?view=flow&flow=1");
-    assert.equal(parsed.chartView, "flow");
-    assert.equal(parsed.view, undefined);
-  });
-
-  it("keeps parsing treemap sub-views when view is not flow", () => {
-    const parsed = parseDashboardUrlSearch("?view=actors");
-    assert.equal(parsed.view, "actors");
-    assert.equal(parsed.chartView, undefined);
-  });
-
-  it("writes `view=flow` for the Flow chart view and preserves the opt-in", () => {
     const search = writeDashboardUrlSearch({
       period: "1d",
       metric: "ops",
       view: "events",
-      chartView: "flow",
       path: [],
-      currentSearch: "?flow=1",
+      flowMode: "graph",
     });
-
-    assert.equal(parseDashboardUrlSearch(search).chartView, "flow");
-    assert.match(search, /flow=1/);
+    assert.match(search, /flowMode=graph/);
   });
 
-  it("writes the treemap sub-view when the chart view is the default", () => {
+  it("parses and writes ego address from URL", () => {
+    const address = "GABC7SWIAIXR4BWLLCVMAVYLFZMFQBWRFRGFTRWGIWG7E5KZLBFZ7KGP";
+    const parsed = parseDashboardUrlSearch(`?ego=${address}`);
+    assert.equal(parsed.egoAddress, address);
+
     const search = writeDashboardUrlSearch({
       period: "1d",
       metric: "ops",
-      view: "actors",
-      chartView: "treemap",
+      view: "events",
       path: [],
+      egoAddress: address,
+    });
+    assert.match(search, new RegExp(`ego=${address}`));
+  });
+
+  it("ignores invalid ego address", () => {
+    const parsed1 = parseDashboardUrlSearch("?ego=invalid");
+    assert.equal(parsed1.egoAddress, undefined);
+
+    const parsed2 = parseDashboardUrlSearch("?ego=AABC7SWIAIXR4BWLLCVMAVYLFZMFQBWRFRGFTRWGIWG7E5KZLBFZ7KGP");
+    assert.equal(parsed2.egoAddress, undefined);
+  });
+
+  it("ignores invalid flow mode", () => {
+    const parsed = parseDashboardUrlSearch("?flowMode=invalid");
+    assert.equal(parsed.flowMode, undefined);
+  });
+
+  it("round-trips flow state with ego address", () => {
+    const address = "GABC7SWIAIXR4BWLLCVMAVYLFZMFQBWRFRGFTRWGIWG7E5KZLBFZ7KGP";
+    const search = writeDashboardUrlSearch({
+      period: "7d",
+      metric: "ops",
+      view: "actors",
+      path: [],
+      flowMode: "table",
+      egoAddress: address,
     });
 
-    assert.match(search, /view=actors/);
-    assert.equal(parseDashboardUrlSearch(search).chartView, undefined);
+    const parsed = parseDashboardUrlSearch(search);
+    assert.equal(parsed.flowMode, "table");
+    assert.equal(parsed.egoAddress, address);
+  });
+
+  it("clears flow params when set to null", () => {
+    const search = writeDashboardUrlSearch({
+      period: "1d",
+      metric: "ops",
+      view: "events",
+      path: [],
+      currentSearch: "?flowMode=graph&ego=GABC7SWIAIXR4BWLLCVMAVYLFZMFQBWRFRGFTRWGIWG7E5KZLBFZ7KGP",
+      flowMode: null,
+      egoAddress: null,
+    });
+    assert.doesNotMatch(search, /flowMode/);
+    assert.doesNotMatch(search, /ego/);
   });
 });

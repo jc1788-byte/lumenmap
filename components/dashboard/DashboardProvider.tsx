@@ -62,9 +62,10 @@ interface DashboardContextValue {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   selectSearchResult: (result: SearchResult) => void;
-  /** Flow view state */
-  flowView: "graph" | "table";
-  setFlowView: (view: "graph" | "table") => void;
+  flowMode: "graph" | "table";
+  setFlowMode: (mode: "graph" | "table") => void;
+  egoAddress: string | null;
+  setEgoAddress: (address: string | null) => void;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -170,7 +171,8 @@ export function DashboardProvider({
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [activeLevelPath, setActiveLevelPath] = useState<TreemapNode[]>([]);
   const [focusRequest, setFocusRequest] = useState<SearchResult | null>(null);
-  const [flowView, setFlowViewState] = useState<"graph" | "table">("graph");
+  const [flowMode, setFlowMode] = useState<"graph" | "table">("graph");
+  const [egoAddress, setEgoAddress] = useState<string | null>(null);
   const pendingPathSegments = useRef<string[] | null>(null);
   const [urlReady, setUrlReady] = useState(false);
 
@@ -193,7 +195,8 @@ export function DashboardProvider({
         setChartViewState("flow");
       }
       if (parsed.network) setNetworkState(parsed.network);
-      setSearchQuery(parsed.searchQuery ?? "");
+      if (parsed.flowMode) setFlowMode(parsed.flowMode);
+      if (parsed.egoAddress) setEgoAddress(parsed.egoAddress);
       setUrlReady(true);
     });
   }, [flowViewEnabled]);
@@ -280,6 +283,8 @@ export function DashboardProvider({
       currentSearch: window.location.search,
       comparePeriod,
       network,
+      flowMode,
+      egoAddress,
     });
     if (visualization === "flow") {
       const params = new URLSearchParams(next);
@@ -293,16 +298,7 @@ export function DashboardProvider({
         `${window.location.pathname}${next}`,
       );
     }
-  }, [
-    urlReady,
-    period,
-    metric,
-    treemapView,
-    chartView,
-    activeLevelPath,
-    comparePeriod,
-    network,
-  ]);
+  }, [urlReady, period, metric, treemapView, activeLevelPath, comparePeriod, network, flowMode, egoAddress]);
 
   const selectSearchResult = useCallback(
     (result: SearchResult) => {
@@ -350,8 +346,10 @@ export function DashboardProvider({
       searchQuery,
       setSearchQuery,
       selectSearchResult,
-      flowView,
-      setFlowView: setFlowViewState,
+      flowMode,
+      setFlowMode,
+      egoAddress,
+      setEgoAddress,
     }),
     [
       visualization,
@@ -382,7 +380,8 @@ export function DashboardProvider({
       focusRequest,
       searchQuery,
       selectSearchResult,
-      flowView,
+      flowMode,
+      egoAddress,
     ],
   );
 
