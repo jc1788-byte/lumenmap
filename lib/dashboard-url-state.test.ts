@@ -104,4 +104,35 @@ describe("dashboard URL state", () => {
     });
     assert.equal(parseDashboardUrlSearch(search).comparePeriod, "7d");
   });
+
+  it("parses ?view=flow as flow mode without a treemap view", () => {
+    const parsed = parseDashboardUrlSearch("?period=1d&view=flow");
+    assert.equal(parsed.flow, true);
+    assert.equal(parsed.view, undefined);
+  });
+
+  it("writes view=flow when flow mode is on and round-trips it", () => {
+    const search = writeDashboardUrlSearch({
+      period: "1d",
+      metric: "ops",
+      view: "events",
+      flow: true,
+      path: [],
+    });
+    assert.match(search, /view=flow/);
+    assert.equal(parseDashboardUrlSearch(search).flow, true);
+  });
+
+  it("keeps treemap view parsing untouched when flow is off", () => {
+    const search = writeDashboardUrlSearch({
+      period: "1d",
+      metric: "ops",
+      view: "actors",
+      path: [],
+    });
+    assert.match(search, /view=actors/);
+    const parsed = parseDashboardUrlSearch(search);
+    assert.equal(parsed.view, "actors");
+    assert.equal(parsed.flow, undefined);
+  });
 });
