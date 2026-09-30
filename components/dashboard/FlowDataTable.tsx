@@ -18,6 +18,7 @@ export interface FlowTableNode {
   id: string;
   label: string;
   category?: string;
+  protocol?: string;
 }
 
 export interface FlowTableEdge {

@@ -1,5 +1,5 @@
 import fixture from "@/data/fixtures/flow-edges.json";
-import { getDisplayName } from "@/lib/entities/registry";
+import { getDisplayName, lookupEntity } from "@/lib/entities/registry";
 import { resolvePeriod } from "@/lib/periods";
 import type { Period } from "@/lib/types";
 
@@ -38,7 +38,17 @@ export function getFixtureFlowGraph(
     end: range.end.toISOString(),
     source: "fixture",
     graph: buildFlowGraph(stored.rows, {
-      resolveLabel: (id) => getDisplayName(id),
+      resolveLabel: (id) => {
+        const entity = lookupEntity(id);
+        if (entity) {
+          return {
+            label: entity.name,
+            category: entity.category,
+            protocol: entity.protocol,
+          };
+        }
+        return getDisplayName(id);
+      },
     }),
   };
 }

@@ -194,4 +194,100 @@ describe("FlowCanvas", () => {
     // Button updates to resume
     expect(getByRole(container, "button", { name: /resume layout animation/i })).toBeDefined();
   });
+
+  describe("Protocol cluster grouping overlay", () => {
+    const protocolNodes: FlowTableNode[] = [
+      { id: "G_CIRCLE_1", label: "Circle USDC", category: "issuer", protocol: "Circle" },
+      { id: "G_CIRCLE_2", label: "Circle EURC", category: "issuer", protocol: "Circle" },
+      { id: "C_SOROSWAP_1", label: "Soroswap Router", category: "defi", protocol: "Soroswap" },
+      { id: "C_SOROSWAP_2", label: "Soroswap Pool", category: "defi", protocol: "Soroswap" },
+      { id: "G_UNKNOWN_USER", label: "Unknown Trader", category: "account" },
+    ];
+
+    const protocolEdges: FlowTableEdge[] = [
+      {
+        id: "G_CIRCLE_1->G_CIRCLE_2|native:XLM",
+        source: "G_CIRCLE_1",
+        destination: "G_CIRCLE_2",
+        assetKey: "native:XLM",
+        amount: "1000",
+        operationCount: 1,
+      },
+      {
+        id: "C_SOROSWAP_1->C_SOROSWAP_2|native:XLM",
+        source: "C_SOROSWAP_1",
+        destination: "C_SOROSWAP_2",
+        assetKey: "native:XLM",
+        amount: "2000",
+        operationCount: 2,
+      },
+      {
+        id: "G_UNKNOWN_USER->G_CIRCLE_1|native:XLM",
+        source: "G_UNKNOWN_USER",
+        destination: "G_CIRCLE_1",
+        assetKey: "native:XLM",
+        amount: "500",
+        operationCount: 1,
+      },
+    ];
+
+    it("renders distinct visual groups for known protocols and leaves unknown nodes ungrouped", () => {
+      act(() => {
+        root.render(<FlowCanvas nodes={protocolNodes} edges={protocolEdges} showProtocolClusters={true} />);
+      });
+
+      const overlay = getByTestId(container, "protocol-clusters-overlay");
+      expect(overlay).toBeDefined();
+
+      // Check Circle cluster group
+      const circleCluster = getByTestId(container, "protocol-cluster-circle");
+      expect(circleCluster).toBeDefined();
+      expect(circleCluster.querySelector("path")).toBeDefined();
+      expect(circleCluster.textContent).toContain("Circle (2)");
+
+      // Check Soroswap cluster group
+      const soroswapCluster = getByTestId(container, "protocol-cluster-soroswap");
+      expect(soroswapCluster).toBeDefined();
+      expect(soroswapCluster.querySelector("path")).toBeDefined();
+      expect(soroswapCluster.textContent).toContain("Soroswap (2)");
+
+      // Verify unknown nodes remain ungrouped
+      expect(container.querySelector('[data-testid="protocol-cluster-unknown"]')).toBeNull();
+      expect(container.querySelector('[data-testid*="unknown-trader"]')).toBeNull();
+    });
+
+    it("toggles protocol cluster overlay on and off without breaking layout", () => {
+      act(() => {
+        root.render(<FlowCanvas nodes={protocolNodes} edges={protocolEdges} />);
+      });
+
+      expect(getByTestId(container, "protocol-clusters-overlay")).toBeDefined();
+      const nodeEl = getByTestId(container, "flow-node-G_CIRCLE_1");
+      const initialTransform = nodeEl.getAttribute("transform");
+      expect(initialTransform).toBeTruthy();
+
+      // Toggle off
+      const toggleBtn = getByTestId(container, "flow-clusters-toggle");
+      expect(toggleBtn.textContent).toContain("Protocol clusters: on");
+
+      act(() => {
+        fireEvent.click(toggleBtn);
+      });
+
+      // Overlay is hidden
+      expect(container.querySelector('[data-testid="protocol-clusters-overlay"]')).toBeNull();
+      expect(toggleBtn.textContent).toContain("Protocol clusters: off");
+
+      // Node transform is preserved (layout not broken)
+      expect(nodeEl.getAttribute("transform")).toBe(initialTransform);
+
+      // Toggle back on
+      act(() => {
+        fireEvent.click(toggleBtn);
+      });
+
+      expect(getByTestId(container, "protocol-clusters-overlay")).toBeDefined();
+      expect(nodeEl.getAttribute("transform")).toBe(initialTransform);
+    });
+  });
 });

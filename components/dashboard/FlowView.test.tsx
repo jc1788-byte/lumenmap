@@ -150,4 +150,31 @@ describe("FlowView", () => {
 
     expect(mockSetSelectedNode).toHaveBeenCalledWith(null);
   });
+
+  it("toggles protocol cluster overlay from FlowView header button", () => {
+    act(() => {
+      root.render(<FlowView />);
+    });
+
+    const clusterToggle = getByTestId(container, "protocol-cluster-toggle");
+    expect(clusterToggle).toBeDefined();
+    expect(clusterToggle.getAttribute("aria-checked")).toBe("true");
+
+    // Initially overlay is rendered
+    expect(getByTestId(container, "protocol-clusters-overlay")).toBeDefined();
+
+    // Toggle off
+    act(() => {
+      fireEvent.click(clusterToggle);
+    });
+    expect(clusterToggle.getAttribute("aria-checked")).toBe("false");
+    expect(container.querySelector('[data-testid="protocol-clusters-overlay"]')).toBeNull();
+
+    // Toggle back on
+    act(() => {
+      fireEvent.click(clusterToggle);
+    });
+    expect(clusterToggle.getAttribute("aria-checked")).toBe("true");
+    expect(getByTestId(container, "protocol-clusters-overlay")).toBeDefined();
+  });
 });
