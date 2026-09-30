@@ -4,6 +4,7 @@ import type { TreemapNode } from "@/lib/types";
 import {
   decodeDrillPathParam,
   encodeDrillPath,
+  isValidChartView,
   isValidMetric,
   parseDashboardUrlSearch,
   resolveDrillPath,
@@ -108,34 +109,49 @@ describe("dashboard URL state", () => {
     assert.equal(parseDashboardUrlSearch(search).comparePeriod, "7d");
   });
 
-  it("parses ?view=flow as flow mode without a treemap view", () => {
-    const parsed = parseDashboardUrlSearch("?period=1d&view=flow");
-    assert.equal(parsed.flow, true);
+  it("validates known chart views only", () => {
+    assert.equal(isValidChartView("treemap"), true);
+    assert.equal(isValidChartView("flow"), true);
+    assert.equal(isValidChartView("events"), false);
+    assert.equal(isValidChartView(null), false);
+  });
+
+  it("parses `view=flow` as the Flow chart view", () => {
+    const parsed = parseDashboardUrlSearch("?view=flow&flow=1");
+    assert.equal(parsed.chartView, "flow");
     assert.equal(parsed.view, undefined);
   });
 
-  it("writes view=flow when flow mode is on and round-trips it", () => {
+  it("keeps parsing treemap sub-views when view is not flow", () => {
+    const parsed = parseDashboardUrlSearch("?view=actors");
+    assert.equal(parsed.view, "actors");
+    assert.equal(parsed.chartView, undefined);
+  });
+
+  it("writes `view=flow` for the Flow chart view and preserves the opt-in", () => {
     const search = writeDashboardUrlSearch({
       period: "1d",
       metric: "ops",
       view: "events",
-      flow: true,
+      chartView: "flow",
       path: [],
+      currentSearch: "?flow=1",
     });
-    assert.match(search, /view=flow/);
-    assert.equal(parseDashboardUrlSearch(search).flow, true);
+
+    assert.equal(parseDashboardUrlSearch(search).chartView, "flow");
+    assert.match(search, /flow=1/);
   });
 
-  it("keeps treemap view parsing untouched when flow is off", () => {
+  it("writes the treemap sub-view when the chart view is the default", () => {
     const search = writeDashboardUrlSearch({
       period: "1d",
       metric: "ops",
       view: "actors",
+      chartView: "treemap",
       path: [],
     });
+
     assert.match(search, /view=actors/);
-    const parsed = parseDashboardUrlSearch(search);
-    assert.equal(parsed.view, "actors");
-    assert.equal(parsed.flow, undefined);
+    assert.equal(parseDashboardUrlSearch(search).chartView, undefined);
   });
 });

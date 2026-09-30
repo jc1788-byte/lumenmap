@@ -1,7 +1,7 @@
 import { isValidPeriod } from "@/lib/periods";
 import type { DashboardMetricId, Period, TreemapNode } from "@/lib/types";
-import type { TreemapViewId } from "@/lib/constants";
-import { TREEMAP_VIEWS } from "@/lib/constants";
+import type { ChartViewId, TreemapViewId } from "@/lib/constants";
+import { CHART_VIEWS, TREEMAP_VIEWS } from "@/lib/constants";
 
 const METRIC_IDS: DashboardMetricId[] = [
   "ops",
@@ -23,20 +23,10 @@ export function isValidTreemapView(
   return TREEMAP_VIEWS.some((view) => view.id === value);
 }
 
-/**
- * Flow view URL value (issue #311).
- *
- * `?view=flow` opens the Flow ego view instead of a treemap. It is
- * deliberately NOT a TreemapViewId: treemap lookups, selectors, and share
- * links keep working exactly as before, and flow mode is carried by a
- * separate flag below.
- */
-export const FLOW_VIEW_PARAM = "flow";
-
-export function isFlowViewParam(
+export function isValidChartView(
   value: string | null | undefined,
-): boolean {
-  return value === FLOW_VIEW_PARAM;
+): value is ChartViewId {
+  return CHART_VIEWS.some((view) => view.id === value);
 }
 
 /** Stable path segment for a treemap node (prefer id, fall back to name). */
@@ -92,8 +82,11 @@ export type DashboardUrlState = {
   period: Period;
   metric: DashboardMetricId;
   view?: TreemapViewId;
-  /** True when `?view=flow` requests the Flow ego view (issue #311). */
-  flow?: boolean;
+  /**
+   * Top-level chart view. Only `flow` is encoded in the URL; the default
+   * `treemap` view leaves `view` to carry the treemap sub-view instead.
+   */
+  chartView?: ChartViewId;
   pathSegments: string[];
   comparePeriod?: Period;
   network?: "mainnet" | "testnet";
@@ -121,12 +114,11 @@ export function parseDashboardUrlSearch(
   const metric = params.get("metric");
   if (isValidMetric(metric)) next.metric = metric;
 
+  // `view` carries the top-level Flow selection when it is `flow`; otherwise it
+  // keeps encoding the treemap sub-view (operation types vs accounts).
   const view = params.get("view");
-  if (isFlowViewParam(view)) {
-    next.flow = true;
-  } else if (isValidTreemapView(view)) {
-    next.view = view;
-  }
+  if (view === "flow") next.chartView = "flow";
+  else if (isValidTreemapView(view)) next.view = view;
 
   const network = params.get("network");
   if (network === "mainnet" || network === "testnet") next.network = network;
@@ -142,14 +134,16 @@ export function writeDashboardUrlSearch(input: {
   currentSearch?: string;
   comparePeriod?: Period | null;
   network?: "mainnet" | "testnet";
-  searchQuery?: string;
+  chartView?: ChartViewId;
 }): string {
   const params = new URLSearchParams(
     (input.currentSearch ?? "").replace(/^\?/, ""),
   );
   params.set("period", input.period);
   params.set("metric", input.metric);
-  params.set("view", input.flow === true ? FLOW_VIEW_PARAM : input.view);
+  // Flow replaces the treemap sub-view in the shared `view` param so Flow URLs
+  // stay compatible with the flag gate (`?view=flow`) and the visual harness.
+  params.set("view", input.chartView === "flow" ? "flow" : input.view);
   if (input.network && input.network !== "mainnet") {
     params.set("network", input.network);
   } else {

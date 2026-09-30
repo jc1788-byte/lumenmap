@@ -1,109 +1,111 @@
-import { act, useState } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { fireEvent, getByRole, getByTestId, waitFor } from "@testing-library/dom";
-import DashboardLayout from "@/app/(dashboard)/layout";
-import { AppProviders } from "@/components/providers";
-import { useDashboard } from "./DashboardProvider";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, getByRole, queryByRole } from "@testing-library/dom";
+import { vi } from "vitest";
+import { DashboardProvider, useDashboard } from "./DashboardProvider";
+import { ViewSwitcher } from "./ViewSwitcher";
 
-function FilterControls() {
-  const { period, setPeriod, metric, setMetric, searchQuery, setSearchQuery } =
-    useDashboard();
-
+function Harness() {
+  const { chartView, setChartView, flowViewEnabled } = useDashboard();
   return (
-    <div>
-      <output data-testid="filter-state">
-        {period}|{metric}|{searchQuery}
-      </output>
-      <button onClick={() => setPeriod("30d")}>Set 30 days</button>
-      <button onClick={() => setMetric("ops")}>Set operations</button>
-      <button onClick={() => setSearchQuery("XLM")}>Search XLM</button>
-    </div>
+    <ViewSwitcher
+      value={chartView}
+      onChange={setChartView}
+      flowEnabled={flowViewEnabled}
+    />
   );
 }
 
-function FlowConsumer() {
-  const { period, metric, searchQuery } = useDashboard();
-  return (
-    <output data-testid="flow-state">
-      {period}|{metric}|{searchQuery}
-    </output>
+let container: HTMLDivElement;
+let root: Root;
+let queryClient: QueryClient;
+
+beforeEach(() => {
+  window.history.replaceState(null, "", "/");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ ok: true, json: async () => ({}) })),
   );
-}
-
-function RouteHarness() {
-  const [route, setRoute] = useState<"overview" | "flow">("overview");
-
-  return (
-    <>
-      <button onClick={() => setRoute("flow")}>Open Flow</button>
-      {route === "overview" ? <FilterControls /> : <FlowConsumer />}
-    </>
-  );
-}
-
-describe("DashboardProvider shared filters", () => {
-  let container: HTMLDivElement;
-  let root: Root;
-  let fetchMock: ReturnType<typeof vi.fn>;
-
-  beforeEach(() => {
-    window.history.replaceState(
-      {},
-      "",
-      "/?period=7d&metric=transactions&q=Soroban",
-    );
-    container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
-    fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({}),
-    });
-    vi.stubGlobal("fetch", fetchMock);
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = createRoot(container);
+  queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
   });
+});
 
-  afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
-    window.history.replaceState({}, "", "/");
-    vi.unstubAllGlobals();
+afterEach(() => {
+  act(() => root.unmount());
+  queryClient.clear();
+  container.remove();
+  vi.unstubAllGlobals();
+  window.history.replaceState(null, "", "/");
+});
+
+async function renderDashboard(flowViewEnabled: boolean) {
+  await act(async () => {
+    root.render(
+      <QueryClientProvider client={queryClient}>
+        <DashboardProvider flowViewEnabled={flowViewEnabled}>
+          <Harness />
+        </DashboardProvider>
+      </QueryClientProvider>,
+    );
   });
+  // Flush the provider's deferred URL-ready microtask and the write effect.
+  await act(async () => {});
+}
 
-  it("shares hydrated filters across route consumers without duplicate fetches", async () => {
-    act(() => {
-      root.render(
-        <AppProviders>
-          <DashboardLayout>
-            <RouteHarness />
-          </DashboardLayout>
-        </AppProviders>,
-      );
-    });
+function viewParam() {
+  return new URLSearchParams(window.location.search).get("view");
+}
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    expect(getByTestId(container, "filter-state").textContent).toBe(
-      "7d|transactions|Soroban",
-    );
+describe("DashboardProvider chart view URL state", () => {
+  it("defaults to the Treemap view", async () => {
+    await renderDashboard(true);
+
     expect(
-      new URL(fetchMock.mock.calls[0][0] as string, window.location.origin)
-        .searchParams.get("period"),
-    ).toBe("7d");
-
-    act(() => {
-      fireEvent.click(getByRole(container, "button", { name: "Set 30 days" }));
-      fireEvent.click(getByRole(container, "button", { name: "Set operations" }));
-      fireEvent.click(getByRole(container, "button", { name: "Search XLM" }));
-      fireEvent.click(getByRole(container, "button", { name: "Open Flow" }));
-    });
-
-    expect(getByTestId(container, "flow-state").textContent).toBe(
-      "30d|ops|XLM",
-    );
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(
-      fetchMock.mock.calls.map(([url]) =>
-        new URL(url as string, window.location.origin).searchParams.get("period"),
+      getByRole(container, "tab", { name: "Treemap" }).getAttribute(
+        "aria-selected",
       ),
-    ).toEqual(["7d", "30d"]);
+    ).toBe("true");
+    expect(viewParam()).toBe("events");
+  });
+
+  it("persists the Flow selection to the view URL param when enabled", async () => {
+    await renderDashboard(true);
+
+    await act(async () => {
+      fireEvent.click(getByRole(container, "tab", { name: "Flow" }));
+    });
+
+    expect(viewParam()).toBe("flow");
+    expect(
+      getByRole(container, "tab", { name: "Flow" }).getAttribute(
+        "aria-selected",
+      ),
+    ).toBe("true");
+  });
+
+  it("restores the Flow view from the URL when enabled", async () => {
+    window.history.replaceState(null, "", "/?view=flow");
+
+    await renderDashboard(true);
+
+    expect(
+      getByRole(container, "tab", { name: "Flow" }).getAttribute(
+        "aria-selected",
+      ),
+    ).toBe("true");
+  });
+
+  it("keeps the treemap and hides the switcher when the flag is off", async () => {
+    window.history.replaceState(null, "", "/?view=flow");
+
+    await renderDashboard(false);
+
+    expect(queryByRole(container, "tab")).toBeNull();
+    expect(viewParam()).toBe("events");
   });
 });
