@@ -29,6 +29,8 @@ export interface FlowTableEdge {
   asset?: { code: string };
   /** Aggregated amount in minor units (stroops, 7 decimals). */
   amount: string;
+  /** False when an edge contains operations without a reliable amount. */
+  amountComplete?: boolean;
   operationCount: number;
 }
 
@@ -340,8 +342,7 @@ export function FlowDataTable({
       destinationLabel:
         labelById.get(edge.destination) ?? truncateAddress(edge.destination),
       asset: assetLabel(edge),
-      amount: amountToUnits(edge.amount),
-      encoding: edgeEncodings.get(edge.id),
+      amount: edge.amountComplete === false ? null : amountToUnits(edge.amount),
     }));
     const { sortKey, direction } = edgeSort;
     return rows.sort((a, b) => {
@@ -350,7 +351,7 @@ export function FlowDataTable({
       else if (sortKey === "destination")
         cmp = a.destinationLabel.localeCompare(b.destinationLabel);
       else if (sortKey === "asset") cmp = a.asset.localeCompare(b.asset);
-      else if (sortKey === "amount") cmp = a.amount - b.amount;
+      else if (sortKey === "amount") cmp = (a.amount ?? -1) - (b.amount ?? -1);
       else cmp = a.edge.operationCount - b.edge.operationCount;
       if (cmp === 0) cmp = a.edge.id.localeCompare(b.edge.id);
       return direction === "asc" ? cmp : -cmp;
@@ -432,7 +433,7 @@ export function FlowDataTable({
                 <td className="px-3 py-2 text-zinc-200" title={edge.source}>{sourceLabel}</td>
                 <td className="px-3 py-2 text-zinc-200" title={edge.destination}>{destinationLabel}</td>
                 <td className="px-3 py-2 text-zinc-400">{asset}</td>
-                <td className="px-3 py-2 font-mono text-zinc-200">{formatExactNumber(amount)}</td>
+                <td className="px-3 py-2 font-mono text-zinc-200">{amount === null ? "—" : formatExactNumber(amount)}</td>
                 <td className="px-3 py-2 font-mono text-zinc-300">{formatExactNumber(edge.operationCount)}</td>
                 <td className="px-3 py-2">
                   <EdgeWeightBar encoding={encoding} />

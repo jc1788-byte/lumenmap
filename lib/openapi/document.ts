@@ -8,7 +8,7 @@ export const openApiDocument = {
     title: "LumenMap Public API",
     version: "1.0.0",
     description:
-      "Machine-readable contracts for visualization activity, timeseries, and health probes. Schemas align with the Zod validators used at the server boundary.",
+      "Machine-readable contracts for visualization activity, flow, timeseries, and health probes.",
     license: { name: "MIT" },
   },
   servers: [{ url: "/", description: "Current deployment" }],
@@ -106,6 +106,23 @@ export const openApiDocument = {
               },
             },
           },
+        },
+      },
+    },
+    "/api/v1/flow": {
+      get: {
+        operationId: "getPaymentFlow",
+        summary: "Period overview or 1-hop account payment flow",
+        parameters: [
+          { name: "period", in: "query", required: false, schema: { $ref: "#/components/schemas/Period" } },
+          { name: "network", in: "query", required: false, schema: { type: "string", enum: ["mainnet", "testnet"], default: "mainnet" } },
+          { name: "account", in: "query", required: false, schema: { type: "string", pattern: "^G[A-Z2-7]{55}$" } },
+        ],
+        responses: {
+          "200": { description: "Flow graph", content: { "application/json": { schema: { $ref: "#/components/schemas/FlowResponse" } } } },
+          "400": { description: "Invalid parameter", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/RateLimitError" } } } },
+          "500": { description: "Flow provider failure", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
         },
       },
     },
@@ -214,6 +231,18 @@ export const openApiDocument = {
       Period: {
         type: "string",
         enum: ["1d", "7d", "30d", "month"],
+      },
+      FlowResponse: {
+        type: "object",
+        required: ["period", "account", "source", "sampled", "nodes", "edges"],
+        properties: {
+          period: { $ref: "#/components/schemas/Period" },
+          account: { type: ["string", "null"] },
+          source: { type: "string", enum: ["hubble", "fixture"] },
+          sampled: { type: "boolean" },
+          nodes: { type: "array", items: { type: "object", required: ["id", "label"], properties: { id: { type: "string" }, label: { type: "string" }, category: { type: "string" } } } },
+          edges: { type: "array", items: { type: "object", required: ["id", "source", "destination", "assetKey", "asset", "amount", "operationCount"], properties: { id: { type: "string" }, source: { type: "string" }, destination: { type: "string" }, assetKey: { type: "string" }, asset: { type: "object", required: ["code"], properties: { code: { type: "string" } } }, amount: { type: "string" }, amountComplete: { type: "boolean" }, operationCount: { type: "integer" } } } },
+        },
       },
       ApiError: {
         type: "object",

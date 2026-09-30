@@ -1,191 +1,199 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import Link from "next/link";
-import { ExternalLink } from "lucide-react";
-import { useDashboard } from "@/components/dashboard/DashboardProvider";
-import { FlowCanvas } from "@/components/dashboard/FlowCanvas";
-import {
-  FlowDataTable,
-  FlowViewToggle,
-  type FlowView as FlowViewMode,
-} from "@/components/dashboard/FlowDataTable";
-import { getFixtureFlowGraph } from "@/lib/flow/flow-fixture";
-import {
-  FLOW_METHODOLOGY_ANCHORS,
-  flowMethodologyHref,
-} from "@/lib/metrics/flow-methodology-anchors";
-import { formatExactNumber, formatNumber, useReducedMotion } from "@/lib/utils";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { FlowDataTable, FlowViewToggle, type FlowView as FlowDisplay } from "./FlowDataTable";
+import { useDashboard } from "./DashboardProvider";
+import type { FlowResponse } from "@/lib/flow/data";
+import type { FlowNode } from "@/lib/flow/graph";
+import { truncateAddress } from "@/lib/utils";
 
-export interface FlowViewProps {
-  initialViewMode?: FlowViewMode;
-  className?: string;
+async function fetchFlow(period: string, network: string, account: string | null): Promise<FlowResponse> {
+  const params = new URLSearchParams({ period, network });
+  if (account) params.set("account", account);
+  const response = await fetch(`/api/v1/flow?${params}`);
+  if (!response.ok) {
+    const body = await response.json() as { message?: string };
+    throw new Error(body.message ?? "Failed to load flow data.");
+  }
+  return response.json() as Promise<FlowResponse>;
 }
 
-export function FlowView({ initialViewMode = "graph", className }: FlowViewProps) {
-  const { period, selectedNode, setSelectedNode } = useDashboard();
-  const [viewMode, setViewMode] = useState<FlowViewMode>(initialViewMode);
-  const [showProtocolClusters, setShowProtocolClusters] = useState(true);
-  const prefersReducedMotion = useReducedMotion();
-
-  // Load fixture graph for current period
-  const flowResponse = useMemo(() => {
-    return getFixtureFlowGraph(period);
-  }, [period]);
-
-  const { nodes, edges, coverage } = flowResponse.graph;
-
-  const activeSelectedId = useMemo(() => {
-    if (!selectedNode) return null;
-    return (selectedNode.meta?.id as string) ?? null;
-  }, [selectedNode]);
-
-  const handleSelectNode = useCallback(
-    (id: string | null) => {
-      if (!id) {
-        setSelectedNode(null);
-        return;
-      }
-
-      // Check if it matches an edge id
-      const matchedEdge = edges.find((e) => e.id === id);
-      if (matchedEdge) {
-        setSelectedNode({
-          name: `${matchedEdge.source.slice(0, 4)}… → ${matchedEdge.destination.slice(0, 4)}…`,
-          value: matchedEdge.operationCount,
-          share: 0,
-          meta: {
-            id: matchedEdge.id,
-            type: "account",
-            opCount: matchedEdge.operationCount,
-            nodeId: matchedEdge.source,
-          },
-        });
-        return;
-      }
-
-      const matchedNode = nodes.find((n) => n.id === id);
-      if (matchedNode) {
-        const totalOps =
-          matchedNode.metrics.inOperationCount +
-          matchedNode.metrics.outOperationCount;
-
-        setSelectedNode({
-          name: matchedNode.label,
-          value: totalOps,
-          share: 0,
-          meta: {
-            id: matchedNode.id,
-            type: "account",
-            category: matchedNode.category,
-            protocol: matchedNode.protocol,
-            opCount: totalOps,
-            nodeId: matchedNode.id,
-          },
-        });
-      } else {
-        setSelectedNode(null);
-      }
-    },
-    [nodes, edges, setSelectedNode],
-  );
+function FlowGraph({
+  nodes,
+  edges,
+  account,
+  selectedId,
+  onSelect,
+  onFocus,
+}: {
+  nodes: FlowResponse["nodes"];
+  edges: FlowResponse["edges"];
+  account: string | null;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onFocus: (id: string) => void;
+}) {
+  const center = { x: 320, y: 210 };
+  const others = account ? nodes.filter((node) => node.id !== account) : nodes;
+  const positions = new Map<string, { x: number; y: number }>();
+  if (account) positions.set(account, center);
+  others.forEach((node, index) => {
+    const angle = (2 * Math.PI * index) / Math.max(others.length, 1) - Math.PI / 2;
+    positions.set(node.id, {
+      x: center.x + 245 * Math.cos(angle),
+      y: center.y + 155 * Math.sin(angle),
+    });
+  });
 
   return (
-    <div
-      data-testid="flow-view"
-      className={`rounded-xl border border-white/5 bg-surface p-4 sm:p-6 ${className ?? ""}`}
+    <svg
+      viewBox="0 0 640 420"
+      className="h-auto w-full rounded-xl border border-white/10 bg-black/20"
+      role="group"
+      aria-label={account ? `One-hop flow graph for ${account}` : "Period flow overview graph"}
     >
-      {/* Header bar */}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold tracking-tight text-white sm:text-xl">
-              Payment Flow
-            </h2>
-            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-zinc-300">
-              {formatExactNumber(nodes.length)} accounts · {formatExactNumber(edges.length)} flows
-            </span>
-            {prefersReducedMotion && (
-              <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
-                Reduced motion active
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-text-muted">
-            Directed value movement across top payment and funding counterparties.
-            {" · "}
-            <Link
-              href={flowMethodologyHref(FLOW_METHODOLOGY_ANCHORS.flow)}
-              className="inline-flex items-center gap-0.5 text-stellar-light hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stellar"
-            >
-              Methodology & limitations
-              <ExternalLink className="h-3 w-3" />
-            </Link>
+      <defs>
+        <marker id="flow-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+          <path d="M0,0 L7,3.5 L0,7 Z" fill="#818cf8" />
+        </marker>
+      </defs>
+      {edges.map((edge) => {
+        const from = positions.get(edge.source);
+        const to = positions.get(edge.destination);
+        if (!from || !to) return null;
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const length = Math.hypot(dx, dy);
+        if (length === 0) return null;
+        const fromRadius = edge.source === account ? 31 : 25;
+        const toRadius = edge.destination === account ? 33 : 27;
+        return (
+          <line
+            key={edge.id}
+            x1={from.x + (dx / length) * fromRadius}
+            y1={from.y + (dy / length) * fromRadius}
+            x2={to.x - (dx / length) * toRadius}
+            y2={to.y - (dy / length) * toRadius}
+            stroke="#818cf8" strokeWidth="2" opacity="0.65" markerEnd="url(#flow-arrow)"
+          >
+            <title>{`${edge.source} → ${edge.destination}: ${edge.operationCount} operations`}</title>
+          </line>
+        );
+      })}
+      {nodes.map((node) => {
+        const point = positions.get(node.id);
+        if (!point) return null;
+        return (
+          <g
+            key={node.id}
+            role="button"
+            tabIndex={0}
+            aria-label={`Select ${node.label}`}
+            aria-pressed={selectedId === node.id}
+            onClick={() => onSelect(node.id)}
+            onDoubleClick={() => onFocus(node.id)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSelect(node.id);
+              }
+            }}
+            className="cursor-pointer focus:outline-none"
+          >
+            <title>{node.id}</title>
+            <circle
+              cx={point.x} cy={point.y} r={account === node.id ? 27 : 21}
+              fill={account === node.id ? "#6366f1" : "#27272a"}
+              stroke={selectedId === node.id ? "#fff" : "#a5b4fc"}
+              strokeWidth="2"
+            />
+            <text x={point.x} y={point.y + 37} textAnchor="middle" fill="#e4e4e7" fontSize="11">
+              {node.label.length > 18 ? `${node.label.slice(0, 16)}…` : node.label}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+export function FlowView({
+  account,
+  onAccountChange,
+}: {
+  account: string | null;
+  onAccountChange: (account: string | null) => void;
+}) {
+  const { period, network } = useDashboard();
+  const [display, setDisplay] = useState<FlowDisplay>("graph");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const query = useQuery({
+    queryKey: ["flow", period, network, account],
+    queryFn: () => fetchFlow(period, network, account),
+    staleTime: 60_000,
+  });
+  const selectedNode: FlowNode | undefined = query.data?.nodes.find((node) => node.id === selectedId);
+
+  return (
+    <section data-testid="flow-view" className="space-y-4" aria-label="Payment flow">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-white">Payment flow</h2>
+          <p className="text-sm text-zinc-400">
+            {account ? `1-hop counterparties of ${truncateAddress(account)}` : "Period overview"}
           </p>
         </div>
-
-        {/* View toggle (Graph / Table) + Protocol cluster toggle */}
-        <div className="flex flex-wrap items-center gap-2">
-          {viewMode === "graph" && (
-            <button
-              type="button"
-              role="switch"
-              aria-checked={showProtocolClusters}
-              data-testid="protocol-cluster-toggle"
-              onClick={() => setShowProtocolClusters((v) => !v)}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-stellar-light ${
-                showProtocolClusters
-                  ? "border-stellar-light/40 bg-stellar-light/10 text-stellar-light"
-                  : "border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              <span>Protocol clusters</span>
+        <div className="flex items-center gap-2">
+          {account && (
+            <button type="button" onClick={() => onAccountChange(null)} className="rounded-lg border border-white/20 px-3 py-1 text-sm text-white hover:bg-white/10">
+              Back to period overview
             </button>
           )}
-          <FlowViewToggle view={viewMode} onChange={setViewMode} />
+          <FlowViewToggle view={display} onChange={setDisplay} />
         </div>
       </div>
-
-      {/* Main content body */}
-      {viewMode === "graph" ? (
-        <FlowCanvas
-          nodes={nodes}
-          edges={edges}
-          selectedId={activeSelectedId}
-          onSelect={handleSelectNode}
-          showParallelList={true}
-          showProtocolClusters={showProtocolClusters}
-          onToggleProtocolClusters={setShowProtocolClusters}
-        />
+      {query.isPending ? (
+        <p role="status" className="text-sm text-zinc-400">Loading flow graph…</p>
+      ) : query.isError ? (
+        <p role="alert" className="text-sm text-red-300">{query.error.message}</p>
+      ) : query.data.edges.length === 0 ? (
+        <p role="status" className="rounded-xl border border-white/10 bg-black/20 p-6 text-sm text-zinc-300">
+          {account ? "This account has no counterparties in the selected period." : "No payment flows in the selected period."}
+        </p>
       ) : (
-        <FlowDataTable
-          nodes={nodes}
-          edges={edges}
-          selectedId={activeSelectedId}
-          onSelect={handleSelectNode}
-          showNodes={true}
-          caption="Payment-flow graph edges"
-        />
+        <>
+          {query.data.sampled && <p className="text-xs text-amber-200">Showing the top 100 edges for this view.</p>}
+          {display === "graph" ? (
+            <FlowGraph
+              nodes={query.data.nodes}
+              edges={query.data.edges}
+              account={account}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onFocus={onAccountChange}
+            />
+          ) : (
+            <FlowDataTable
+              nodes={query.data.nodes}
+              edges={query.data.edges}
+              showNodes
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+            />
+          )}
+          {selectedNode && (
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-zinc-300">
+              <p className="font-medium text-white">{selectedNode.label}</p>
+              <p className="break-all font-mono text-xs">{selectedNode.id}</p>
+              <button type="button" onClick={() => onAccountChange(selectedNode.id)} className="mt-2 text-stellar-light underline">
+                View 1-hop flow
+              </button>
+            </div>
+          )}
+          <p className="text-xs text-zinc-500">Double-click an account node to focus on its direct counterparties.</p>
+        </>
       )}
-
-      {/* Coverage summary footer */}
-      {coverage && (
-        <div className="mt-4 flex flex-wrap items-center justify-between border-t border-white/5 pt-3 text-xs text-zinc-500">
-          <div className="flex items-center gap-1.5">
-            
-            <span>
-              Sampled top {coverage.edgeCount} of {coverage.totalEdgeCount} flow edges (
-              {formatNumber(coverage.operationCount)} operations represented).
-            </span>
-          </div>
-          <Link
-            href={flowMethodologyHref(FLOW_METHODOLOGY_ANCHORS.sampling)}
-            className="text-xs text-zinc-400 underline hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stellar"
-          >
-            About flow sampling
-          </Link>
-        </div>
-      )}
-    </div>
+    </section>
   );
 }
