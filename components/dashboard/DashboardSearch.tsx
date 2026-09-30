@@ -9,6 +9,7 @@ import {
   searchIndex,
   type SearchResult,
 } from "@/lib/search";
+import { SHORTCUT_KEYS } from "@/lib/shortcuts";
 import { cn, truncateAddress } from "@/lib/utils";
 
 function resultTypeBadge(type: SearchResult["type"]): string {
@@ -164,9 +165,11 @@ export function DashboardSearch() {
           id={inputId}
           type="search"
           role="combobox"
+          data-testid="dashboard-search-input"
           aria-expanded={showPanel}
           aria-controls={`${inputId}-listbox`}
           aria-autocomplete="list"
+          aria-keyshortcuts={SHORTCUT_KEYS.focusSearch}
           aria-activedescendant={
             showPanel && flatResults[safeActiveIndex]
               ? `${inputId}-option-${safeActiveIndex}`

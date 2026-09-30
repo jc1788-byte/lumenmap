@@ -755,6 +755,31 @@ Metric definitions, current-period coverage, Hubble freshness limits, source fie
 | Account | `set_options`, `manage_data`, sponsorship operations |
 | Other | Remaining types |
 
+## Keyboard shortcuts
+
+Press `?` on the dashboard (or the keyboard icon in the header) to open the
+shortcuts dialog. The dialog is rendered from `lib/shortcuts.ts`; the table
+below mirrors it — update both together.
+
+| Shortcut | Action |
+| --- | --- |
+| `/` | Focus the search box |
+| `↑` `↓` | Move through search results (while results are open) |
+| `Enter` | Open the highlighted search result |
+| `Esc` | Close the results list (while the search box is focused) |
+| `[` | Previous period |
+| `]` | Next period |
+| `↑` `↓` `←` `→` | Change period (while the period selector is focused) |
+| `Tab` | Move between treemap tiles |
+| `Enter` / `Space` | Open details for, or drill into, the focused tile |
+| `↑` `↓` `←` `→` | Switch treemap view (while the view selector is focused) |
+| `Esc` | Close the detail panel and return focus to the tile |
+| `?` | Show or hide the shortcuts dialog |
+| `Esc` | Close the shortcuts dialog |
+
+Shortcuts never fire while typing in a text field, so `?` and `/` can be
+typed into search and other inputs normally.
+
 ## Contributing
 
 Contributions are welcome at [github.com/lumenmap/lumenmap](https://github.com/lumenmap/lumenmap).

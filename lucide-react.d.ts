@@ -13,6 +13,7 @@ declare module "lucide-react" {
   export const Download: FC<SVGProps<SVGSVGElement>>;
   export const ExternalLink: FC<SVGProps<SVGSVGElement>>;
   export const HelpCircle: FC<SVGProps<SVGSVGElement>>;
+  export const Keyboard: FC<SVGProps<SVGSVGElement>>;
   export const Layers: FC<SVGProps<SVGSVGElement>>;
   export const Loader2: FC<SVGProps<SVGSVGElement>>;
   export const RefreshCw: FC<SVGProps<SVGSVGElement>>;
