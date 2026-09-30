@@ -43,11 +43,12 @@ describe("dashboard URL state", () => {
 
   it("parses period and metric from search params", () => {
     const parsed = parseDashboardUrlSearch(
-      "?period=7d&metric=xlm_volume&view=actors",
+      "?period=7d&metric=xlm_volume&view=actors&q=Soroban",
     );
     assert.equal(parsed.period, "7d");
     assert.equal(parsed.metric, "xlm_volume");
     assert.equal(parsed.view, "actors");
+    assert.equal(parsed.searchQuery, "Soroban");
   });
 
   it("ignores invalid period and metric values", () => {
@@ -84,6 +85,7 @@ describe("dashboard URL state", () => {
       period: "30d",
       metric: "transactions",
       view: "events",
+      searchQuery: "Stellar account",
       path,
       currentSearch: "?utm=keep",
     });
@@ -91,6 +93,7 @@ describe("dashboard URL state", () => {
     assert.match(search, /metric=transactions/);
     assert.match(search, /view=events/);
     assert.match(search, /path=Payments/);
+    assert.match(search, /q=Stellar\+account/);
     assert.match(search, /utm=keep/);
   });
 
