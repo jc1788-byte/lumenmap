@@ -11,6 +11,7 @@ import { FreshnessIndicator } from "@/components/dashboard/FreshnessIndicator";
 import { FreshnessWarning } from "@/components/dashboard/FreshnessWarning";
 import { FixtureOnboarding } from "@/components/dashboard/FixtureOnboarding";
 import { KpiCards } from "@/components/dashboard/KpiCards";
+import { FlowEgoSection } from "@/components/dashboard/FlowEgoSection";
 import { NetworkTreemap } from "@/components/dashboard/NetworkTreemap";
 import { FlowView } from "@/components/dashboard/FlowView";
 import { ProtocolBarChart } from "@/components/dashboard/ProtocolBarChart";
@@ -121,6 +122,7 @@ function DashboardContent() {
         }`.concat("")}
       >
         <div className="min-w-0">
+          <FlowEgoSection />
           <NetworkTreemap />
         </div>
         {selectedNode && (
