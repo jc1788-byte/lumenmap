@@ -1,13 +1,34 @@
 "use client";
 
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
+import {
+  ActivityRetryButton,
+  ActivityUnavailableNote,
+} from "@/components/dashboard/ActivityErrorState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatNumber, truncateAddress } from "@/lib/utils";
 
 export function AssetVolumePanel() {
-  const { data, setSelectedNode } = useDashboard();
+  const { data, isError, setSelectedNode } = useDashboard();
   const rows = data?.assetVolumes ?? [];
   const total = rows.reduce((sum, row) => sum + Number(row.amount), 0);
+
+  if (isError && !data) {
+    return (
+      <Card role="alert" data-testid="asset-volume-error">
+        <CardHeader>
+          <CardTitle>Payment volume by asset</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <ActivityUnavailableNote />
+          <ActivityRetryButton
+            testId="asset-volume-retry"
+            className="shrink-0"
+          />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

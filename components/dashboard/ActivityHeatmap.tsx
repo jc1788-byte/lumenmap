@@ -5,6 +5,10 @@ import { BarChart3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
+import {
+  ActivityRetryButton,
+  ActivityUnavailableNote,
+} from "@/components/dashboard/ActivityErrorState";
 import { formatNumber } from "@/lib/utils";
 
 type HeatmapCellState = "missing" | "zero" | "value" | "partial";
@@ -42,7 +46,7 @@ function toUtcDateKey(timestamp: string): string {
 }
 
 export function ActivityHeatmap() {
-  const { data, isLoading } = useDashboard();
+  const { data, isLoading, isError } = useDashboard();
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
 
   const cells = useMemo(() => {
@@ -126,6 +130,23 @@ export function ActivityHeatmap() {
 
   const activeCell =
     cells.find((cell) => cell.dateKey === focusedKey) ?? cells[cells.length - 1];
+
+  if (isError && !data) {
+    return (
+      <Card role="alert" data-testid="activity-heatmap-error">
+        <CardHeader>
+          <CardTitle>Daily Activity Calendar</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <ActivityUnavailableNote />
+          <ActivityRetryButton
+            testId="activity-heatmap-retry"
+            className="shrink-0"
+          />
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isLoading || !data) {
     return (

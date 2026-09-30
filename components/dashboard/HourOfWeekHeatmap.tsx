@@ -3,6 +3,10 @@
 import { useMemo, useRef, useState } from "react";
 import { BarChart3 } from "lucide-react";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
+import {
+  ActivityRetryButton,
+  ActivityUnavailableNote,
+} from "@/components/dashboard/ActivityErrorState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { HeatmapBucket } from "@/lib/types";
@@ -28,7 +32,7 @@ function intensity(value: number, max: number): number {
 }
 
 export function HourOfWeekHeatmap() {
-  const { data, isLoading, metric } = useDashboard();
+  const { data, isLoading, isError, metric } = useDashboard();
   const cellRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const buckets = data?.heatmap?.buckets ?? EMPTY_BUCKETS;
@@ -42,6 +46,23 @@ export function HourOfWeekHeatmap() {
     [buckets, useTransactions],
   );
   const max = Math.max(0, ...values);
+
+  if (isError && !data) {
+    return (
+      <Card role="alert" data-testid="hour-of-week-error">
+        <CardHeader>
+          <CardTitle>Hour-of-week activity</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <ActivityUnavailableNote />
+          <ActivityRetryButton
+            testId="hour-of-week-retry"
+            className="shrink-0"
+          />
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isLoading || !data) {
     return (

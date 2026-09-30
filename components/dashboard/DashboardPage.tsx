@@ -7,7 +7,7 @@ import { CategoryShareChart } from "@/components/dashboard/CategoryShareChart";
 import { DetailPanel } from "@/components/dashboard/DetailPanel";
 import { FreshnessIndicator } from "@/components/dashboard/FreshnessIndicator";
 import { FreshnessWarning } from "@/components/dashboard/FreshnessWarning";
-import { FixtureOnboarding } from "@/components/dashboard/FixtureOnboarding";
+import { ActivityErrorBanner } from "@/components/dashboard/ActivityErrorState";
 import { KpiCards } from "@/components/dashboard/KpiCards";
 import { FlowEgoSection } from "@/components/dashboard/FlowEgoSection";
 import { NetworkTreemap } from "@/components/dashboard/NetworkTreemap";
@@ -66,6 +66,10 @@ function DashboardContent() {
       </header>
 
       <FreshnessWarning />
+
+      <ActivityErrorBanner />
+
+      <SavedViewsControls />
 
       {!metricSupported && (
         <div
