@@ -74,6 +74,8 @@ export type FlowNode = {
   label: string;
   /** Optional entity category (exchange, protocol, ...). */
   category?: string;
+  /** Optional protocol label from entity registry (e.g. Circle, Soroswap). */
+  protocol?: string;
   metrics: FlowNodeMetrics;
 };
 
