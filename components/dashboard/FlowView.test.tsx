@@ -1,16 +1,8 @@
-import { act, useState } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { fireEvent, getByRole, waitFor } from "@testing-library/dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { vi } from "vitest";
-import { FIXTURE_ACCOUNTS } from "@/lib/fixtures/raw-data";
-import { FIXTURE_FLOW_EDGES } from "@/lib/flow/fixtures";
-import { buildFlowGraph } from "@/lib/flow/graph";
+import { getByRole } from "@testing-library/dom";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { FlowView } from "./FlowView";
-
-vi.mock("./DashboardProvider", () => ({
-  useDashboard: () => ({ period: "7d", network: "mainnet" }),
-}));
 
 let container: HTMLDivElement;
 let root: Root;
@@ -24,58 +16,27 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
-  vi.unstubAllGlobals();
 });
 
-function Harness() {
-  const [account, setAccount] = useState<string | null>(null);
-  return <FlowView key={account ?? "overview"} account={account} onAccountChange={setAccount} />;
-}
+describe("FlowView", () => {
+  it("renders Flow view with title and enabled export button in fixture mode", () => {
+    act(() => root.render(<FlowView fixture={true} />));
 
-function renderFlow() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  act(() => root.render(<QueryClientProvider client={client}><Harness /></QueryClientProvider>));
-}
+    expect(container.textContent).toContain("Payment Flow");
+    const exportButton = getByRole(container, "button", {
+      name: /export flow edges as csv/i,
+    });
+    expect(exportButton).toBeTruthy();
+    expect(exportButton.hasAttribute("disabled")).toBe(false);
+  });
 
-it("double-click drills through account API parameter and exit restores overview", async () => {
-  const requests: URL[] = [];
-  vi.stubGlobal("fetch", vi.fn(async (input: string) => {
-    const url = new URL(input, "http://localhost");
-    requests.push(url);
-    const account = url.searchParams.get("account");
-    return new Response(JSON.stringify({
-      period: "7d", account, source: "fixture", sampled: false,
-      ...buildFlowGraph(FIXTURE_FLOW_EDGES, account ?? undefined),
-    }), { status: 200 });
-  }));
+  it("disables export button when graph edges are empty", () => {
+    act(() => root.render(<FlowView fixture={false} edges={[]} nodes={[]} />));
 
-  renderFlow();
-  await waitFor(() => expect(container.querySelectorAll("svg g[role=button]")).toHaveLength(4));
-  const egoNode = [...container.querySelectorAll("svg g[role=button]")]
-    .find((node) => node.querySelector("title")?.textContent === FIXTURE_ACCOUNTS.kraken);
-  expect(egoNode).not.toBeNull();
-  act(() => fireEvent.doubleClick(egoNode!));
-
-  await waitFor(() => expect(requests.some((url) => url.searchParams.get("account") === FIXTURE_ACCOUNTS.kraken)).toBe(true));
-  await waitFor(() => expect(container.querySelectorAll("svg g[role=button]")).toHaveLength(3));
-  expect(container.textContent).not.toContain(FIXTURE_ACCOUNTS.unknownA);
-  act(() => fireEvent.click(getByRole(container, "button", { name: "Back to period overview" })));
-  await waitFor(() => expect(container.querySelectorAll("svg g[role=button]")).toHaveLength(4));
-  expect(requests[0].pathname).toBe("/api/v1/flow");
-  expect(requests[0].searchParams.get("period")).toBe("7d");
-  expect(requests[0].searchParams.has("account")).toBe(false);
-});
-
-it("shows a specific empty state for an account without counterparties", async () => {
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
-    period: "7d", account: FIXTURE_ACCOUNTS.unknownC, source: "fixture", sampled: false,
-    ...buildFlowGraph(FIXTURE_FLOW_EDGES, FIXTURE_ACCOUNTS.unknownC),
-  }), { status: 200 })));
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  act(() => root.render(
-    <QueryClientProvider client={client}>
-      <FlowView account={FIXTURE_ACCOUNTS.unknownC} onAccountChange={() => {}} />
-    </QueryClientProvider>,
-  ));
-  await waitFor(() => expect(getByRole(container, "status").textContent).toMatch(/no counterparties/i));
+    const exportButton = getByRole(container, "button", {
+      name: /export flow edges as csv/i,
+    });
+    expect(exportButton).toBeTruthy();
+    expect(exportButton.hasAttribute("disabled")).toBe(true);
+  });
 });

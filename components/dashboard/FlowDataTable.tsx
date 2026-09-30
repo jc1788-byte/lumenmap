@@ -3,11 +3,10 @@
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { cn, formatExactNumber, truncateAddress } from "@/lib/utils";
-import {
-  encodeFlowEdges,
-  type FlowEdgeEncoding,
-  type FlowEdgeWeightMetric,
-} from "@/lib/metrics/flow-edge-encoding";
+import type { Period } from "@/lib/types";
+import { FlowExportButton } from "./FlowExportButton";
+
+export { FlowExportButton };
 
 /**
  * Minimal structural shapes of the Flow graph model. They are intentionally a
@@ -151,8 +150,8 @@ export interface FlowDataTableProps {
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   caption?: string;
-  /** Weight metric used for edge thickness (operations or asset amount). */
-  weightMetric?: FlowEdgeWeightMetric;
+  period?: Period;
+  hideExport?: boolean;
 }
 
 const HEADER_CELL =
@@ -317,7 +316,8 @@ export function FlowDataTable({
   selectedId = null,
   onSelect,
   caption = "Flow graph edges",
-  weightMetric = "operations",
+  period,
+  hideExport = false,
 }: FlowDataTableProps) {
   const edgeSort = useSort<EdgeSortKey>("amount");
   const nodeSort = useSort<NodeSortKey>("outflow");
@@ -387,28 +387,30 @@ export function FlowDataTable({
 
   if (edges.length === 0) {
     return (
-      <div className="rounded-xl border border-white/5 bg-black/20 p-6 text-center text-sm text-zinc-500">
-        No flow edges to display.
+      <div className="space-y-3">
+        {!hideExport && (
+          <div className="flex items-center justify-end px-1">
+            <FlowExportButton edges={edges} period={period} />
+          </div>
+        )}
+        <div className="rounded-xl border border-white/5 bg-black/20 p-6 text-center text-sm text-zinc-500">
+          No flow edges to display.
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-w-0 space-y-4">
-      {/* Mobile: stacked cards, no horizontal overflow. */}
-      <div className="overflow-hidden rounded-xl border border-white/5 bg-black/20 sm:hidden">
-        <p className="px-3 py-2 text-left text-xs text-zinc-500">
-          {caption} ({formatExactNumber(edges.length)} edges)
-        </p>
-        <EdgeCardList
-          rows={edgeRows}
-          selectedId={selectedId}
-          onSelect={onSelect}
-        />
-      </div>
-
-      {/* Desktop: sortable table. */}
-      <div className="hidden overflow-x-auto rounded-xl border border-white/5 bg-black/20 sm:block">
+    <div className="space-y-4">
+      {!hideExport && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <p className="text-xs text-zinc-400">
+            {caption} ({formatExactNumber(edges.length)} edges)
+          </p>
+          <FlowExportButton edges={edges} period={period} />
+        </div>
+      )}
+      <div className="overflow-x-auto rounded-xl border border-white/5 bg-black/20">
         <table className="w-full min-w-[36rem] border-collapse text-sm">
           <caption className="px-3 py-2 text-left texe-xs text-zinc-500">
             {caption} ({formatExactNumber(edges.length)} edges)

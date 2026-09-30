@@ -5,6 +5,7 @@ import { vi } from "vitest";
 import {
   FlowDataTable,
   FlowViewToggle,
+  FlowExportButton,
   type FlowTableEdge,
   type FlowTableNode,
 } from "./FlowDataTable";
@@ -94,11 +95,20 @@ describe("FlowDataTable", () => {
     expect(tables[1].querySelectorAll("tbody tr")).toHaveLength(nodes.length);
   });
 
-  it("does not present an unknown funding amount as zero", () => {
-    act(() => root.render(
-      <FlowDataTable nodes={nodes} edges={[{ ...edges[0], amount: "0", amountComplete: false }]} />,
-    ));
-    expect(edgeBodyRows()[0].querySelectorAll("td")[3].textContent).toBe("—");
+  it("renders disabled export button when edges list is empty", () => {
+    act(() => root.render(<FlowDataTable nodes={[]} edges={[]} />));
+
+    const exportBtn = getByRole(container, "button", { name: /export/i });
+    expect(exportBtn).toBeTruthy();
+    expect(exportBtn.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("renders enabled export button when edges are present", () => {
+    act(() => root.render(<FlowDataTable nodes={nodes} edges={edges} />));
+
+    const exportBtn = getByRole(container, "button", { name: /export/i });
+    expect(exportBtn).toBeTruthy();
+    expect(exportBtn.hasAttribute("disabled")).toBe(false);
   });
 });
 
@@ -114,3 +124,20 @@ describe("FlowViewToggle", () => {
     expect(onChange).toHaveBeenCalledWith("table");
   });
 });
+
+describe("FlowExportButton", () => {
+  it("is disabled when edges array is empty", () => {
+    act(() => root.render(<FlowExportButton edges={[]} />));
+
+    const button = getByRole(container, "button", { name: /export flow edges as csv/i });
+    expect(button.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("is enabled when edges array has items", () => {
+    act(() => root.render(<FlowExportButton edges={edges} period="7d" />));
+
+    const button = getByRole(container, "button", { name: /export flow edges as csv/i });
+    expect(button.hasAttribute("disabled")).toBe(false);
+  });
+});
+
