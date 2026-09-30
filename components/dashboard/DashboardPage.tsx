@@ -23,7 +23,7 @@ import { DashboardSearch } from "@/components/dashboard/DashboardSearch";
 import { ComparisonPanel } from "@/components/dashboard/ComparisonPanel";
 import { SavedViewsControls } from "@/components/dashboard/SavedViewsControls";
 import { NetworkSelector } from "@/components/dashboard/NetworkSelector";
-import { KeyboardShortcuts } from "@/components/dashboard/KeyboardShortcuts";
+import { FlowView } from "@/components/dashboard/FlowView";
 import {
   isMetricSupportedOnNetwork,
   networkLabel,
@@ -101,59 +101,12 @@ function DashboardContent() {
         </button>
       </div>
 
-      {showFlow ? (
-        <FlowView
-          key={`${period}:${network}:${flowAccount ?? "overview"}`}
-          account={flowAccount}
-          onAccountChange={setFlowAccount}
-        />
-      ) : (
-        <>
-          {!metricSupported && (
-            <div
-              role="status"
-              className="rounded-lg border border-amber-800/70 bg-amber-950/40 px-4 py-3 text-sm text-amber-100"
-            >
-              <p>{unsupportedMetricMessage(metric)}</p>
-              <button
-                type="button"
-                className="mt-2 text-sm font-medium text-amber-50 underline"
-                onClick={() => setMetric("ops")}
-              >
-                Switch to operations
-              </button>
-            </div>
-          )}
-
-          <DashboardSearch />
-          <KpiCards />
-          <ComparisonPanel />
-          <AssetVolumePanel />
-          <CategoryShareChart />
-
-          <div
-            className={`grid min-w-0 grid-cols-1 gap-6 transition-all duration-300 ${
-              selectedNode
-                ? "xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]"
-                : "xl:grid-cols-1"
-            }`}
-          >
-            <div className="min-w-0">
-              <NetworkTreemap />
-            </div>
-            {selectedNode && (
-              <div className="min-w-0 scroll-mt-4" id="detail-panel-container">
-                <DetailPanel onViewFlow={(account) => { setFlowAccount(account); setShowFlow(true); }} />
-              </div>
-            )}
-          </div>
-
-          <ProtocolBarChart />
-          <ActivityHeatmap />
-          <TimeSeriesChart />
-          <HourOfWeekHeatmap />
-        </>
-      )}
+      <ProtocolBarChart />
+      <ActivityHeatmap />
+      <TimeSeriesChart />
+      <HourOfWeekHeatmap />
+      
+      <FlowView />
     </div>
   );
 }

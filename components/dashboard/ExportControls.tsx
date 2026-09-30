@@ -111,9 +111,7 @@ export function ExportControls({ svgRef }: ExportControlsProps) {
       }
 
       const metadata = buildExportMetadata(data, period, treemapView, viewLabel);
-      // Spread into a fresh object: ActivityKpis (an interface) has no index
-      // signature, so it cannot be cast directly to Record<string, unknown>.
-      const kpis: Record<string, unknown> = { ...data.kpis };
+      const kpis = data.kpis as unknown as Record<string, unknown>;
       const kpiLines = Object.entries(kpis)
         .filter(([, value]) => typeof value === "number" || typeof value === "string")
         .slice(0, 8)
