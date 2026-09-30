@@ -37,7 +37,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run start -- -p ${port}`,
+    command: `npm run start -- -icon -p ${port}`,
     url: baseURL,
     reuseExistingServer: false,
     timeout: 300_000,

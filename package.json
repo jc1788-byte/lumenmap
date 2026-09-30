@@ -32,7 +32,8 @@
     "test:mappings": "npx tsx scripts/test-category-mappings.mjs",
     "test:coverage": "node scripts/test-coverage-calculation.mjs",
     "test:unit": "vitest run",
-    "test:fixtures": "npx tsx scripts/verify-fixture-mode.ts"
+    "test:fixtures": "npx tsx scripts/verify-fixture-mode.ts",
+    "test:e2e:flow": "FLOW_FIXTURE_MODE=1 playwright test e2e/flow.spec.ts"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^8.3.1",
