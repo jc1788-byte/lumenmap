@@ -30,7 +30,7 @@ for (const vp of VIEWPORTS) {
   test.describe(`Flow visual baseline @L ${vp.name} (${vp.width}px)`, () => {
     test.use({ viewport: { width: vp.width, height: vp.height } });
 
-    test(`flow view matches baseline (${vp.name})`, async { context, page }) => {
+    test(`flow view matches baseline (${vp.name})`, async ({ context, page }) => {
       // Network isolation: only local requests are allowed.
       await context.route("**/*", async (route) => {
         const url = route.request().url();
@@ -63,7 +63,7 @@ for (const vp of VIEWPORTS) {
       const weightBars = page.locator('[data-testid="flow-edge-weight"]');
       const barCount = await weightBars.count();
       if (barCount >= 2) {
-        const heights = await weightBats.evaluateAll((els) =>
+        const heights = await weightBars.evaluateAll((els) =>
           els.map((el) => {
             const inner = el.querySelector("span");
             const h = inner ? getComputedStyle(inner).height : "0px";
